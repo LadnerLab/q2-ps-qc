@@ -42,8 +42,8 @@ def get_config():
     cfg.VCS = "git"
     cfg.style = "pep440"
     cfg.tag_prefix = ""
-    cfg.parentdir_prefix = "q2-ps-plot-"
-    cfg.versionfile_source = "q2_ps_plot/_version.py"
+    cfg.parentdir_prefix = "q2-ps-qc-"
+    cfg.versionfile_source = "q2_ps_qc/_version.py"
     cfg.verbose = False
     return cfg
 

@@ -1,8 +1,8 @@
 ## this code has been moved to q2-pepsirf ##
 
 # #!/usr/bin/env python
-# from q2_ps_plot.plugin_setup import plugin
-# from q2_ps_plot.format_types import PepsirfContingencyTSVFormat
+# from q2_ps_qc.plugin_setup import plugin
+# from q2_ps_qc.format_types import PepsirfContingencyTSVFormat
 
 # from q2_types.feature_table import BIOMV210Format
 
@@ -20,7 +20,7 @@
 #                        sample_ids=dataframe.columns)
 
 #     with result.open() as fh:
-#         table.to_hdf5(fh, generated_by="q2-ps-plot for pepsirf")
+#         table.to_hdf5(fh, generated_by="q2-ps-qc for pepsirf")
 
 #     return result
 
