@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 import importlib
-import q2_ps_plot
+# import q2_ps_plot
 import q2_ps_qc
+
+# from qimme2.plugin import model as model
+# from q2_ps_qc.format_types import CorrelationMatrixDirectoryFormat
 
 from qiime2.plugin import (Plugin,
                         SemanticType,
@@ -21,315 +24,34 @@ from q2_pepsirf.format_types import (
     Normed, Zscore, InfoSumOfProbes, PairwiseEnrichment, InfoSNPN, ProteinAlignment,
     MutantReference
     )
-import q2_ps_plot.actions as actions
-from q2_ps_plot.actions.scatter import repScatters, mutantScatters
-from q2_ps_plot.actions.boxplot import readCountsBoxplot, enrichmentRCBoxplot
-from q2_ps_plot.actions.heatmap import proteinHeatmap
-from q2_ps_plot.actions.scatter_tsv import repScatters_tsv, mutantScatters_tsv
-from q2_ps_plot.actions.heatmap_tsv import proteinHeatmap_dir
-
+import q2_ps_qc.actions as actions
+# from q2_ps_qc.actions.generate_corr_matrix import generate_corr_matrix
 from q2_types.feature_table import FeatureTable, BIOMV210DirFmt
 
 
 # This is the plugin object. It is what the framework will load and what an
 # interface will interact with. Basically every registration we perform will
 # involve this object in some way.
-plugin = Plugin("ps-qc", version=q2_ps_qc.__version__,
+plugin = Plugin("q2-ps-qc", version=q2_ps_qc.__version__,
                 website="https://github.com/LadnerLab/q2-ps-qc",
                 description="Qiime2 Plug-in for the creation of correlation visualizations from PepSIRF outputs.")
 
-plugin.method.register.function(
+
+plugin.pipelines.register_function(
     function=actions.generate_corr_matrix,
-    inputs={
-        'data': String
-    },
-    parameters={'log-normalization': Bool, 'correlation-threshold': Float},
-    outputs={'output-matrix': Str},
-    input_descriptions={'data': 'Matrix containing data that will be used to generate correlations'},
+    inputs={},
+    outputs=[('output', Visualization)],
+    parameters={'source': MetadataColumn[Categorical], 'data': Str, 'log_normalization': Bool, 'correlation_threshold': Float},
+    input_descriptions=None,
+	output_descriptions={'output': 'File name for output matrix'},
     parameter_descriptions={
-        'log-normalization': 'Run a log normalization on each of the sets of scores before running a '
+		'data': 'Name of input file',
+		'log_normalization': 'Run a log normalization on each of the sets of scores before running a '
                              'correlation test on them',
-        'correlation-threshold': 'Set a threshold value; anything below the value will be considered a bad correlation '
-                                 'score, and anything above will be considered a good correlation score'
+        'correlation_threshold': 'Set a threshold value; anything below the value will be considered a bad correlation '
+                                 'score, and anything above will be considered a good correlation score',
     },
-    output_descriptions={'output-matrix': 'File name for output matrix'},
     name="Generate Correlation Matrix",
     description="Finds all replicate pairs that have poor correlation and creates a .qsv file that allows the user to "
                 "visualize them in a scatter plot."
-)
-
-
-# action set up for zenrich module
-plugin.visualizers.register_function(
-    function=actions.zenrich,
-    inputs={
-        'data': FeatureTable[Normed],
-        'zscores': FeatureTable[Zscore],
-        'negative_data': FeatureTable[Normed],
-        'highlight_probes': InfoSNPN
-    },
-    parameters=shared_parameters,
-    input_descriptions={
-        'data': "FeatureTable containing normalized read counts of samples and peptides. "
-                "First column header must be 'Sequence Name' as produced by pepsirf.",
-        'zscores': "FeatureTable containing z scores of the normalized read counts. "
-                "Fist column header must be 'Sequence Name' as produced by pepsirf.",
-        'negative_data': "FeatureTable containing normalized read counts of controls and peptides. "
-                        "First column header must be 'Sequence Name' as produced by pepsirf.",
-        'highlight_probes': "A InfoSNPN file that contains a list of probes/peptides to highlight."
-    },
-    parameter_descriptions=shared_descriptions,
-    name='Z Enrichment Variance Visualizer',
-    description="Creates a scatterplot of enriched peptides, points are colored "
-                "according to the z score thresholds provided. Scatterplot is "
-                "layered over a heatmap containing all of the data."
-)
-
-repScatters_parameters = {
-        'source': MetadataColumn[Categorical],
-        'plot_log': Bool,
-        'facet_charts': Bool,
-        'pn_filepath': Str,
-        'xy_threshold': Int
-    }
-
-repScatters_parameter_descriptions = {
-        'source': "Metadata file containing all sample names and their source groups. "
-            "Used to create pairs tsv to run pepsirf enrich module.",
-        'plot_log': "Use if you want axes to be shown on a log-scale.",
-        'facet_charts': "Allows for view of all tables on one page instead of the "
-                    "available dropdown menu.",
-        'pn_filepath': "Filepath of .tsv pairs file generated by standalone autopepsirf python script, "
-                "containing all sample pairings, typically ending in '_PN.tsv'. (Depricated)",
-        'xy_threshold': "Highlight the outliers of the plot and add a hoverable tooltip to view what they are."
-    }
-
-# action set up for repScatters module
-plugin.visualizers.register_function(
-    function=repScatters,
-    inputs={
-        'zscore': FeatureTable[Zscore],
-        'col_sum': FeatureTable[Normed]
-    },
-    parameters=repScatters_parameters,
-    input_descriptions={
-        'zscore': "FeatureTable containing z scores of the normalized read counts. "
-                "Fist column header must be 'Sequence Name' as produced by pepsirf.",
-        'col_sum': "FeatureTable containing normalized read counts of samples and peptides. "
-                "First column header must be 'Sequence Name' as produced by pepsirf."
-    },
-    parameter_descriptions=repScatters_parameter_descriptions,
-    name='Rep Scatter',
-    description="Creates a scatterplot for reps of Col-sum data or reps of z score data"
-)
-
-# action set up for repScatters_tsv module
-plugin.pipelines.register_function(
-    function=repScatters_tsv,
-    inputs={},
-    outputs=[
-        ("rep_scatters_vis", Visualization)
-    ],
-    parameters={
-        'zscore_filepath': Str,
-        'col_sum_filepath': Str,
-        **repScatters_parameters
-    },
-    input_descriptions=None,
-    output_descriptions=None,
-    parameter_descriptions={
-        'zscore_filepath': "TSV file containing z scores of the normalized read counts. "
-                "Fist column header must be 'Sequence Name' as produced by pepsirf.",
-        'col_sum_filepath': "TSV file containing normalized read counts of samples and peptides. "
-                "First column header must be 'Sequence Name' as produced by pepsirf.",
-        **repScatters_parameter_descriptions
-    },
-    name='Rep Scatter TSV',
-    description="Creates a scatterplot for reps of Col-sum data or reps of z score data "
-                "wih TSV files instead of QZA files"
-)
-
-# action set up for readCountsBoxplot module
-plugin.visualizers.register_function(
-    function=readCountsBoxplot,
-    inputs={
-        'read_counts':  InfoSumOfProbes
-    },
-    parameters={
-        'png_out_dir': Str
-    },
-    input_descriptions={
-        'read_counts': "InfoSumOfProbes file, The first entry in each column will be the name of the "
-                    "sample, and the second will be the sum of the peptide/probe scores for the sample."
-    },
-    parameter_descriptions={
-        'png_out_dir': "The name of the directory to wich to write the .png output files to"
-    },
-    name='Read Counts BoxPlot',
-    description="Creates a boxplot for the read counts/ sum of probes"
-)
-
-# action set up for enrichmentRCBoxplot module
-plugin.visualizers.register_function(
-    function=enrichmentRCBoxplot,
-    inputs={
-        'enriched_dir':  PairwiseEnrichment
-    },
-    parameters={
-        'png_out_dir': Str
-    },
-    input_descriptions={
-        'enriched_dir': "A PairwiseEnrichment semantic type or .qza. This file is the output of "
-                    "q2-pepsirf's enrich module"
-    },
-    parameter_descriptions={
-        'png_out_dir': "The name of the directory to wich to write the .png output files to"
-    },
-    name='Enriched Read Counts BoxPlot',
-    description="Creates a boxplot for the read counts of enriched peptides"
-)
-
-proteinHeatmap_parameters = {
-        'enriched_suffix': Str,
-        'align_header': Str,
-        'color_scheme': Str,
-        'align_delim': Str
-    }
-
-proteinHeatmap_parameter_descriptions = {
-        'enriched_suffix': "The outfile suffix of the enriched peptide files.",
-        'align_header': "The name of the header to which identifies the alignment positions separated by "
-        "the align_delim (Example column: '1~2~3~4').",
-        'color_scheme': "String of the name of a color scheme for the heatmap. Color schemes can be found"
-                    " here: https://vega.github.io/vega/docs/schemes/",
-        'align_delim': "The deliminator that separates the alignment positions."
-    }
-
-# action set up for proteinHeatmap module
-plugin.visualizers.register_function(
-    function=proteinHeatmap,
-    inputs={
-        'enriched_dir':  PairwiseEnrichment,
-        'protein_alignment': ProteinAlignment
-    },
-    parameters=proteinHeatmap_parameters,
-    input_descriptions={
-        'enriched_dir': "A PairwiseEnrichment semantic type or .qza. This file is the output of "
-                    "q2-pepsirf's enrich module",
-        'protein_alignment': "A director containing a tab delimited file containing the protein and the filepath "
-                            "to the associated alignment file. The file should start with the "
-                            "header as 'ProtName' and be named 'manifest.tsv'. And the files containing the protein alignment "
-                            "information"
-    },
-    parameter_descriptions=proteinHeatmap_parameter_descriptions,
-    name='Protein Alignment Heatmap',
-    description="Creates a heatmap based on the alignment of peptides in the enriched peptides"
-)
-
-plugin.pipelines.register_function(
-    function=proteinHeatmap_dir,
-    inputs={},
-    outputs=[
-        ("protein_heatmap_vis", Visualization)
-    ],
-    parameters={
-        'enriched_dir_filepath':  Str,
-        'protein_alignment_filepath': Str,
-        **proteinHeatmap_parameters
-    },
-    input_descriptions=None,
-    output_descriptions=None,
-    parameter_descriptions={
-        'enriched_dir_filepath': "Enriched directory filepath. This file is the output of "
-                    "q2-pepsirf's enrich module",
-        'protein_alignment_filepath': "A director containing a tab delimited file containing the protein and the filepath "
-                            "to the associated alignment file. The file should start with the "
-                            "header as 'ProtName' and be named 'manifest.tsv'. And the files containing the protein alignment "
-                            "information",
-        **proteinHeatmap_parameter_descriptions
-    },
-    name='Protein Alignment Heatmap Dir',
-    description="Creates a heatmap based on the alignment of peptides in the enriched peptides "
-    "with directory filepaths instead of QZA files"
-)
-
-mutantScatters_parameters = {
-        'source': MetadataColumn[Categorical],
-        'metadata': Metadata,
-        'peptide_header': Str,
-        'reference_header': Str,
-        'x_axis_header': Str,
-        'category_header': Str,
-        'label_header': Str,
-        'x_axis_label': Str,
-        'y_axis_label': Str,
-        'min_wobble': Float,
-        'max_wobble': Float,
-        'wobble': Bool,
-        'scatter_only': Bool,
-        'scatter_boxplot': Bool,
-        'boxplot_only': Bool
-    }
-
-mutantScatters_param_descript = {
-        'source': "Metadata file containing all sample names and their source groups.",
-        'metadata': "The peptide metadata file that contains all of the positions, "
-                "peptides, references, etc.",
-        'peptide_header': "The name of the header of the pepides.",
-        'reference_header': "The name of the header of the references",
-        'x_axis_header': "The name of the header of the x-axis positions to be plotted",
-        'category_header': "The name of the header of the category to color the points by",
-        'label_header': "The name of the header that conatins the label for the tooltip",
-        'x_axis_label': "The name to title the x-axis",
-        'y_axis_label': "The name to title the y-axis",
-        'min_wobble': "The minimum range of the wobble",
-        'max_wobble': "The maximum range of the wobble",
-        'wobble': "Include this flag if you would like the points to be on a wobble",
-        'scatter_only': "Include this flag if you only want to view the scatterplot",
-        'scatter_boxplot': "Include this flag if you want to view the scatterplot "
-                        "and the corresponding boxplot.",
-        'boxplot_only': "Include this flag if you only want to view the boxplot"
-    }
-
-# action set up for mutantScatters module
-plugin.visualizers.register_function(
-    function=mutantScatters,
-    inputs={
-        'zscore': FeatureTable[Zscore],
-        'reference_file': MutantReference
-    },
-    parameters=mutantScatters_parameters,
-    input_descriptions={
-        'zscore': "FeatureTable containing z scores of the normalized read counts. "
-                "Fist column header must be 'Sequence Name' as produced by pepsirf.",
-        'reference_file': "A file containing the reference peptide/probe along with the "
-                        "peptide/probe sequence. Must start with 'CodeName'."
-    },
-    parameter_descriptions=mutantScatters_param_descript,
-    name='Mutant Scatters',
-    description="Creates a scatterplot for mutant peptides"
-)
-
-plugin.pipelines.register_function(
-    function=mutantScatters_tsv,
-    inputs={},
-    outputs=[
-        ("mutant_scatters_vis", Visualization)
-    ],
-    parameters={
-        'zscore_filepath':  Str,
-        'reference_file_filepath': Str,
-        **mutantScatters_parameters
-    },
-    input_descriptions=None,
-    output_descriptions=None,
-    parameter_descriptions={
-        'zscore_filepath': "TSV file containing z scores of the normalized read counts. "
-                "Fist column header must be 'Sequence Name' as produced by pepsirf.",
-        'reference_file_filepath': "A file containing the reference peptide/probe along with the "
-                        "peptide/probe sequence. Must start with 'CodeName'.",
-        **mutantScatters_param_descript
-    },
-    name='Mutant Scatters',
-    description="Creates a scatterplot for mutant peptides with tsv filepaths instead of QZA files"
 )
