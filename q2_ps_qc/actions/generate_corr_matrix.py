@@ -4,6 +4,7 @@ import pandas as pd
 import csv
 import os
 import numpy as np
+import altair as alt
 import qiime2
 
 from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
