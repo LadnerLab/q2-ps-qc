@@ -1,47 +1,28 @@
 #!/usr/bin/env python
 
 import pandas as pd
-import optparse
-import argparse
 import csv
 import os
-
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import scipy.stats
 import numpy as np
 import qiime2
-# from q2_pepsirf.format_types import Visualization
-# from q2_ps_qc.format_types import CorrelationMatrix
 
-plt.style.use('ggplot')
-plt.close("all")
-
-
-def find_replicate_pair(matrix, index, base_name):
-    while index < len(matrix):
-        current_replicate = matrix[index].split('\t')[0]
-
-        if base_name in current_replicate:
-            return current_replicate
-
-        index += 1
-
-    return None
+from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
+from qiime2.plugin import MetadataColumn
+from qiime2.plugin import Metadata
 
 
-def generate_bad_corr_tsv(data, bad_corr_file_name, bad_corr_replicates):
+def generate_corr_tsv(data, corr_file_name, corr_replicates):
     score_fh = open(data, "r")
-    bad_corr_fh = open(bad_corr_file_name, "w")
+    corr_fh = open(corr_file_name, "w")
     scores = score_fh.readlines()
     replicates = scores[0].replace("\n", "").split("\t")
     replicates.pop(0)
 
-    bad_corr_fh.write("Sequence name\t")
+    corr_fh.write("Sequence name\t")
 
-    for replicate in bad_corr_replicates:
-        bad_corr_fh.write(replicate)
-        bad_corr_fh.write("\t")
+    for replicate in corr_replicates:
+        corr_fh.write(replicate)
+        corr_fh.write("\t")
 
     row_index = 1
     try:
@@ -51,8 +32,8 @@ def generate_bad_corr_tsv(data, bad_corr_file_name, bad_corr_replicates):
             row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
 
             # Write the sequence name followed by a tab, then pop the sequence name from the row list
-            bad_corr_fh.write(row[0])
-            bad_corr_fh.write("\t")
+            corr_fh.write(row[0])
+            corr_fh.write("\t")
             row.pop(0)
 
             # Loop through each score in the row list
@@ -62,19 +43,39 @@ def generate_bad_corr_tsv(data, bad_corr_file_name, bad_corr_replicates):
                 replicate = replicates[score_index]
 
                 # Check if the replicate matches the replicate in the predicted correlation file
-                if replicate in bad_corr_replicates:
-                    bad_corr_fh.write(row[score_index])
-                    bad_corr_fh.write("\t")
+                if replicate in corr_replicates:
+                    corr_fh.write(row[score_index])
+                    corr_fh.write("\t")
 
                 score_index += 1
 
-            bad_corr_fh.write("\n")
+            corr_fh.write("\n")
             row_index += 1
     except EOFError and IndexError:
         pass
 
 
-def generate_corr_matrix(ctx, source, data, log_normalization = False, correlation_threshold = 0.8):
+def generate_metadata_file(metadata_file_name, replicates):
+    base_replicates = []
+
+    replicates.sort()
+
+    for replicate in replicates:
+        base_sequence_name = replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
+        base_replicates.append(base_sequence_name)
+
+
+    metadata_series = pd.Series(data=base_replicates, index=replicates)
+    metadata_series.index.name = 'sample-id'
+    metadata_series.name = 'source'
+    print(metadata_series)
+
+    metadata = qiime2.metadata.CategoricalMetadataColumn(metadata_series)
+
+    return metadata
+
+
+def generate_corr_matrix(ctx, data, log_normalization = False, correlation_threshold = 0.8):
     LN_CONSTANT = 11
 
     # Open the file with replicate scores
@@ -120,8 +121,6 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
 
                 replicate_pair_dict[current_replicate] = []
 
-                # Get row
-
                 # Loop through each of the rows in the scores file
                 row_index = 1
                 try:
@@ -129,12 +128,39 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
                         row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
                         row.pop(0)
 
-                        # Get the score from the index associated with the first pair and add it to the first pair entry
-                        first_pair_score = float(row[first_pair_index])
+                        # Check log normaliztion flag and calculate score from the index associated the first pair
+                        if log_normalization:
+                            if float(row[first_pair_index]) >= LN_CONSTANT:
+                                LN_CONSTANT = float(row[first_pair_index]) + 1
+
+                                row_index = 1
+                                continue
+
+                            first_pair_score = np.log10(float(row[first_pair_index]) + LN_CONSTANT) - np.log10(LN_CONSTANT)
+                        # Otherwise get the score from the index associated with the first pair
+                        else:
+                            first_pair_score = float(row[first_pair_index])
+
+                        # Add score to the first pair entry
                         replicate_pair_dict[replicates[first_pair_index]].append(first_pair_score)
 
-                        # Get the score from the index associated with the second pair and add it to the second pair entry
-                        second_pair_score = float(row[second_pair_index])
+                        # Check log normaliztion flag and calculate score from the index associated the second pair
+                        if log_normalization:
+                            if float(row[second_pair_index]) >= LN_CONSTANT:
+                                LN_CONSTANT = float(row[second_pair_index]) + 1
+
+                                replicate_pair_dict[replicates[first_pair_index]] = []
+                                replicate_pair_dict[replicates[second_pair_index]] = []
+                                row_index = 1
+                                print("RESETTING SCORE INDEX")
+                                continue
+
+                            second_pair_score = np.log10(float(row[second_pair_index]) + LN_CONSTANT) - np.log10(LN_CONSTANT)
+                        # Otherwise get the score from the index associated with the second pair
+                        else:
+                           second_pair_score = float(row[second_pair_index])
+
+                        # Add score to the second pair entry
                         replicate_pair_dict[replicates[second_pair_index]].append(second_pair_score)
 
                         row_index += 1
@@ -146,14 +172,12 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
                 corr_matrix = [data_frame.corr(method='pearson')]
 
-                print(corr_matrix)
-
                 for matrix in corr_matrix:
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
                         if score_found and temp_score != '2.0':
-                            if float(temp_score) < 0.8:
+                            if float(temp_score) < correlation_threshold:
                                 bad_corr_replicates.append(replicate)
                         for score in matrix.get(replicate):
                             # TODO: create a check for if all four entries in matrix are 1.0
@@ -161,9 +185,9 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
                                 temp_score = str(score)
                                 score_found = True
 
-                                if score < 0.8:
+                                if score < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
-                                elif score >= 0.8:
+                                elif score >= correlation_threshold:
                                     good_corr_replicates.append(replicate)
 
                 looking_for_second_pair = False
@@ -181,19 +205,21 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
 
             index += 1
 
-            # Create correlation matrix
-
     except EOFError and IndexError:
         pass
 
-    print(bad_corr_replicates)
-
     score_fh.close()
 
-    generate_bad_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
+    # Create Zscore matrix and metadata for bad correlation replicates
+    generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
+    bad_metadata = generate_metadata_file("bad_corr_meta.tsv", bad_corr_replicates)
 
-    correlation_vis, = repScatters_tsv(
-		source = source,
+    # Create Zscore matrix and metadata for bad correlation replicates
+    generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
+    good_metadata = generate_metadata_file("good_corr_meta.tsv", good_corr_replicates)
+
+    bad_correlation_vis, = repScatters_tsv(
+		source = bad_metadata,
 		pn_filepath = None,
 		plot_log = False,
 		zscore_filepath = "bad_corr.tsv",
@@ -202,4 +228,14 @@ def generate_corr_matrix(ctx, source, data, log_normalization = False, correlati
 		xy_threshold = None
 	)
 
-    return correlation_vis
+    good_correlation_vis, = repScatters_tsv(
+        source=good_metadata,
+        pn_filepath=None,
+        plot_log=False,
+        zscore_filepath="good_corr.tsv",
+        col_sum_filepath=None,
+        facet_charts=False,
+        xy_threshold=None
+    )
+
+    return bad_correlation_vis, good_correlation_vis
