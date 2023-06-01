@@ -98,11 +98,9 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
     replicate_pair_dict = {}
     bad_corr_replicates = []
     good_corr_replicates = []
-    #print("Gathering pairs...")
     try:
         while True:
             current_replicate = replicates[index]
-            #print("Current replicate: " + current_replicate)
 
             if not looking_for_second_pair:
                 replicate_pair_dict = {}
@@ -121,7 +119,6 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
             if looking_for_second_pair and current_replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0] \
                     == base_sequence_name:
                 second_pair_index = index
-                #print(replicates[first_pair_index] + " shares a base seq name with " + replicates[second_pair_index])
 
                 replicate_pair_dict[current_replicate] = []
 
@@ -176,37 +173,25 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
                 corr_matrix = [data_frame.corr(method='pearson')]
 
-                #print("\nReplicate Pair Data Frame:")
-                #print(data_frame)
-
                 for matrix in corr_matrix:
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
-                        #print("Examining scores of replicate " + replicate)
                         if score_found and temp_score != '2.0':
                             if float(temp_score) < correlation_threshold:
                                 bad_corr_replicates.append(replicate)
-                                #print(" -> temp score (" + str(temp_score) + ") not equal or above corr threshold")
                             elif float(temp_score) >= correlation_threshold:
                                 good_corr_replicates.append(replicate)
-                                #print(" -> temp score (" + str(temp_score) + ") equal or above corr threshold")
                         for score in matrix.get(replicate):
                             # TODO: create a check for if all four entries in matrix are 1.0
-                            #print(replicate + ": " + str(score))
                             if score != 1.0 and not score_found:
                                 temp_score = str(score)
                                 score_found = True
 
                                 if score < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
-                                    #print(" -> not above correlation threshold!")
                                 elif score >= correlation_threshold:
                                     good_corr_replicates.append(replicate)
-                                    #print(" -> greater or equal to correlation threshold!")
-                            #else:
-                                #print(" -> is 1.0")
-                    #print("Next matrix...\n")
 
                 looking_for_second_pair = False
 
@@ -221,7 +206,6 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
                     distance_between_indices = 0
                     index = temp_index
 
-            #print("\nNext replicate...")
             index += 1
 
     except EOFError and IndexError:
