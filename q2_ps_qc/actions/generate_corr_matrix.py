@@ -180,6 +180,8 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
                         if score_found and temp_score != '2.0':
                             if float(temp_score) < correlation_threshold:
                                 bad_corr_replicates.append(replicate)
+                            elif float(temp_score) >= correlation_threshold:
+                                good_corr_replicates.append(replicate)
                         for score in matrix.get(replicate):
                             # TODO: create a check for if all four entries in matrix are 1.0
                             if score != 1.0 and not score_found:
