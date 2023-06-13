@@ -21,9 +21,11 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
 
     corr_fh.write("Sequence name\t")
 
-    for replicate in corr_replicates:
+    for replicate in corr_replicates[:-1]:
         corr_fh.write(replicate)
         corr_fh.write("\t")
+    corr_fh.write(corr_replicates[len(corr_replicates) - 1])
+    corr_fh.write("\n")
 
     row_index = 1
     try:
