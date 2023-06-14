@@ -73,7 +73,13 @@ def generate_metadata(replicates):
     return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
 
-def generate_corr_matrix(ctx, data, log_normalization = False, correlation_threshold = 0.8):
+def generate_corr_matrix(
+        ctx,
+        data,
+        reps_source=None,
+        log_normalization=False,
+        correlation_threshold=0.8
+):
     LN_CONSTANT = 11
 
     # Open the file with replicate scores
