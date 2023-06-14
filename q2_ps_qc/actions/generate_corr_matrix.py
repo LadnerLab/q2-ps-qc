@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import pandas as pd
 import csv
 import os
@@ -21,9 +20,11 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
 
     corr_fh.write("Sequence name\t")
 
-    for replicate in corr_replicates:
+    for replicate in corr_replicates[:-1]:
         corr_fh.write(replicate)
         corr_fh.write("\t")
+    corr_fh.write(corr_replicates[len(corr_replicates) - 1])
+    corr_fh.write("\n")
 
     row_index = 1
     try:
@@ -32,9 +33,8 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
             # Replace all 'nan' values with '0' and remove first element as it is not a score
             row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
 
-            # Write the sequence name followed by a tab, then pop the sequence name from the row list
+            # Write the sequence name, then pop the sequence name from the row list
             corr_fh.write(row[0])
-            corr_fh.write("\t")
             row.pop(0)
 
             # Loop through each score in the row list
@@ -45,8 +45,8 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
 
                 # Check if the replicate matches the replicate in the predicted correlation file
                 if replicate in corr_replicates:
-                    corr_fh.write(row[score_index])
                     corr_fh.write("\t")
+                    corr_fh.write(row[score_index])
 
                 score_index += 1
 
@@ -56,7 +56,7 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
         pass
 
 
-def generate_metadata_file(metadata_file_name, replicates):
+def generate_metadata(replicates):
     base_replicates = []
 
     replicates.sort()
@@ -65,15 +65,12 @@ def generate_metadata_file(metadata_file_name, replicates):
         base_sequence_name = replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
         base_replicates.append(base_sequence_name)
 
-
     metadata_series = pd.Series(data=base_replicates, index=replicates)
     metadata_series.index.name = 'sample-id'
     metadata_series.name = 'source'
     print(metadata_series)
 
-    metadata = qiime2.metadata.CategoricalMetadataColumn(metadata_series)
-
-    return metadata
+    return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
 
 def generate_corr_matrix(ctx, data, log_normalization = False, correlation_threshold = 0.8):
@@ -215,11 +212,11 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
 
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
-    bad_metadata = generate_metadata_file("bad_corr_meta.tsv", bad_corr_replicates)
+    bad_metadata = generate_metadata(bad_corr_replicates)
 
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
-    good_metadata = generate_metadata_file("good_corr_meta.tsv", good_corr_replicates)
+    good_metadata = generate_metadata(good_corr_replicates)
 
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
@@ -232,13 +229,14 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
 	)
 
     good_correlation_vis, = repScatters_tsv(
-        source=good_metadata,
-        pn_filepath=None,
-        plot_log=False,
-        zscore_filepath="good_corr.tsv",
-        col_sum_filepath=None,
-        facet_charts=False,
-        xy_threshold=None
+        source = good_metadata,
+        pn_filepath = None,
+        plot_log = False,
+        zscore_filepath = "good_corr.tsv",
+        col_sum_filepath = None,
+        facet_charts = False,
+        xy_threshold = None
     )
 
     return bad_correlation_vis, good_correlation_vis
+
