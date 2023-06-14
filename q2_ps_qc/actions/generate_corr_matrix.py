@@ -234,13 +234,14 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
 	)
 
     good_correlation_vis, = repScatters_tsv(
-        source=good_metadata,
-        pn_filepath=None,
-        plot_log=False,
-        zscore_filepath="good_corr.tsv",
-        col_sum_filepath=None,
-        facet_charts=False,
-        xy_threshold=None
+        source = good_metadata,
+        pn_filepath = None,
+        plot_log = False,
+        zscore_filepath = "good_corr.tsv",
+        col_sum_filepath = None,
+        facet_charts = False,
+        xy_threshold = None
     )
 
     return bad_correlation_vis, good_correlation_vis
+
