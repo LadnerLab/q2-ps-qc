@@ -72,15 +72,25 @@ def generate_metadata(replicates):
 
     return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
-
 def generate_corr_matrix(
         ctx,
         data,
-        reps_source=None,
+        samples=None,
         log_normalization=False,
         correlation_threshold=0.8
 ):
     LN_CONSTANT = 11
+
+    # samples dictionary stores a list of sample replicates at a key defined
+    # by the base sequence
+    samples_dict = {}
+    if samples is not None:
+        with open(samples, "r") as samples:
+            lines = samples.readlines()
+            for line in lines:
+                split_line = line.replace("\n", "").split("\t")
+                base_seq_name = split_line[0].split("_A")[0].split("_B")[0].split("_P3")[0].split("_P4")[0]
+                samples_dict[base_seq_name] = split_line
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
