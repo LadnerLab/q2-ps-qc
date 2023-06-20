@@ -83,14 +83,13 @@ def generate_corr_matrix(
 
     # samples dictionary stores a list of sample replicates at a key defined
     # by the base sequence
-    samples_dict = {}
+    user_spec_replicates = []
     if samples is not None:
         with open(samples, "r") as samples:
             lines = samples.readlines()
             for line in lines:
                 split_line = line.replace("\n", "").split("\t")
-                base_seq_name = split_line[0].split("_A")[0].split("_B")[0].split("_P3")[0].split("_P4")[0]
-                samples_dict[base_seq_name] = split_line
+                user_spec_replicates.extend(split_line)
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
@@ -114,6 +113,10 @@ def generate_corr_matrix(
     try:
         while True:
             current_replicate = replicates[index]
+
+            if samples is not None and current_replicate not in user_spec_replicates:
+                index += 1
+                continue
 
             if not looking_for_second_pair:
                 replicate_pair_dict = {}
