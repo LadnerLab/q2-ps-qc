@@ -1,14 +1,24 @@
 #!/usr/bin/env python
-import pandas as pd
-import csv
-import os
-import numpy as np
 import altair as alt
+import csv
+import numpy as np
+import os
+import pandas as pd
 import qiime2
 
 from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
 from qiime2.plugin import MetadataColumn
 from qiime2.plugin import Metadata
+
+# TODO: add description
+def rfind(pattern, string):
+    new_string = ""
+    split_string = string.split(pattern)
+    for i in range(len(split_string) - 1):
+        if i > 0:
+            new_string += "_"
+        new_string += split_string[i]
+    return new_string
 
 
 def generate_corr_tsv(data, corr_file_name, corr_replicates):
@@ -62,7 +72,7 @@ def generate_metadata(replicates):
     replicates.sort()
 
     for replicate in replicates:
-        base_sequence_name = replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
+        base_sequence_name = rfind("_", replicate)
         base_replicates.append(base_sequence_name)
 
     metadata_series = pd.Series(data=base_replicates, index=replicates)
@@ -120,7 +130,7 @@ def generate_corr_matrix(
 
             if not looking_for_second_pair:
                 replicate_pair_dict = {}
-                base_sequence_name = current_replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
+                base_sequence_name = rfind("_", current_replicate)
 
                 temp_index = index
                 first_pair_index = index
@@ -132,8 +142,7 @@ def generate_corr_matrix(
                 continue
 
             # Check if current replicate has matching base sequence name
-            if looking_for_second_pair and current_replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0] \
-                    == base_sequence_name:
+            if looking_for_second_pair and rfind("_", current_replicate) == base_sequence_name:
                 second_pair_index = index
 
                 replicate_pair_dict[current_replicate] = []
@@ -193,21 +202,23 @@ def generate_corr_matrix(
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
-                        if score_found and temp_score != '2.0':
-                            if float(temp_score) < correlation_threshold:
-                                bad_corr_replicates.append(replicate)
-                            elif float(temp_score) >= correlation_threshold:
-                                good_corr_replicates.append(replicate)
-                        for score in matrix.get(replicate):
-                            # TODO: create a check for if all four entries in matrix are 1.0
-                            if score != 1.0 and not score_found:
-                                temp_score = str(score)
-                                score_found = True
-
-                                if score < correlation_threshold:
+                        # check replicate has not been examined yet
+                        if replicate not in good_corr_replicates \
+                                and replicate not in bad_corr_replicates:
+                            if score_found and temp_score != '2.0':
+                                if float(temp_score) < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
-                                elif score >= correlation_threshold:
+                                elif float(temp_score) >= correlation_threshold:
                                     good_corr_replicates.append(replicate)
+                            for score in matrix.get(replicate):
+                                if score != 1.0 and not score_found:
+                                    temp_score = str(score)
+                                    score_found = True
+
+                                    if score < correlation_threshold:
+                                        bad_corr_replicates.append(replicate)
+                                    elif score >= correlation_threshold:
+                                        good_corr_replicates.append(replicate)
 
                 looking_for_second_pair = False
 
