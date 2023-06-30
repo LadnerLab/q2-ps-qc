@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+
 import altair as alt
 import csv
 import numpy as np
 import os
 import pandas as pd
 import qiime2
+
+from itertools import combinations
 
 from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
 from qiime2.plugin import MetadataColumn
@@ -93,13 +96,21 @@ def generate_corr_matrix(
 
     # samples dictionary stores a list of sample replicates at a key defined
     # by the base sequence
-    user_spec_replicates = []
+    user_spec_pairs = []
     if samples is not None:
+        # read samples into memory
+        user_spec_reps = []
         with open(samples, "r") as samples:
             lines = samples.readlines()
             for line in lines:
                 split_line = line.replace("\n", "").split("\t")
-                user_spec_replicates.extend(split_line)
+                user_spec_reps.append(split_line)
+        print("User spec reps: %s\n" % user_spec_reps)
+        # organize samples into pair list where all possible combinations of
+        # those on a line are considered
+        for group in user_spec_reps:
+            user_spec_pairs.extend(list(combinations(group, 2)))
+    print("User spec pairs: %s\n" % user_spec_pairs)
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
@@ -108,6 +119,10 @@ def generate_corr_matrix(
     # Get the names of all the replicates in the input file
     replicates = scores[0].replace("\n", "").split("\t")
     replicates.pop(0)
+
+    print("Replicates from input matrix:")
+    print(replicates)
+    print("")
 
     repScatters_tsv = ctx.get_action('ps-plot', 'repScatters_tsv')
 
@@ -123,10 +138,6 @@ def generate_corr_matrix(
     try:
         while True:
             current_replicate = replicates[index]
-
-            if samples is not None and current_replicate not in user_spec_replicates:
-                index += 1
-                continue
 
             if not looking_for_second_pair:
                 replicate_pair_dict = {}
@@ -194,6 +205,7 @@ def generate_corr_matrix(
                 except EOFError and IndexError:
                     pass
 
+                print("Comparing replicates: %s to %s\n" % (replicates[first_pair_index], replicates[second_pair_index]))
                 # Create a data frame & convert it into a correlation matrix
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
                 corr_matrix = [data_frame.corr(method='pearson')]
@@ -239,6 +251,13 @@ def generate_corr_matrix(
         pass
 
     score_fh.close()
+
+    print("Bad corr replicates:")
+    print(bad_corr_replicates)
+    print("")
+    print("Good corr replicates:")
+    print(good_corr_replicates)
+    print("")
 
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
