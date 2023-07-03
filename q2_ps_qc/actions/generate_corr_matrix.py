@@ -105,12 +105,12 @@ def generate_corr_matrix(
             for line in lines:
                 split_line = line.replace("\n", "").split("\t")
                 user_spec_reps.append(split_line)
-        print("User spec reps: %s\n" % user_spec_reps)
         # organize samples into pair list where all possible combinations of
         # those on a line are considered
         for group in user_spec_reps:
             user_spec_pairs.extend(list(combinations(group, 2)))
-    print("User spec pairs: %s\n" % user_spec_pairs)
+    else: # assume there will be no pairs
+        user_spec_pairs = None
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
@@ -119,10 +119,6 @@ def generate_corr_matrix(
     # Get the names of all the replicates in the input file
     replicates = scores[0].replace("\n", "").split("\t")
     replicates.pop(0)
-
-    print("Replicates from input matrix:")
-    print(replicates)
-    print("")
 
     repScatters_tsv = ctx.get_action('ps-plot', 'repScatters_tsv')
 
@@ -205,7 +201,6 @@ def generate_corr_matrix(
                 except EOFError and IndexError:
                     pass
 
-                print("Comparing replicates: %s to %s\n" % (replicates[first_pair_index], replicates[second_pair_index]))
                 # Create a data frame & convert it into a correlation matrix
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
                 corr_matrix = [data_frame.corr(method='pearson')]
@@ -252,13 +247,6 @@ def generate_corr_matrix(
 
     score_fh.close()
 
-    print("Bad corr replicates:")
-    print(bad_corr_replicates)
-    print("")
-    print("Good corr replicates:")
-    print(good_corr_replicates)
-    print("")
-
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
     bad_metadata = generate_metadata(bad_corr_replicates)
@@ -267,8 +255,23 @@ def generate_corr_matrix(
     generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
 
+    # put user pairs in a format qiime2 can work with
+    if user_spec_pairs is not None:
+        bad_corr_spec_pairs = [
+            rep for pair in user_spec_pairs for rep in pair \
+            if rep in bad_corr_replicates
+        ]
+        good_corr_spec_pairs = [
+            rep for pair in user_spec_pairs for rep in pair \
+            if rep in good_corr_replicates
+        ]
+    else:
+        bad_corr_spec_pairs = None
+        good_corr_spec_pairs = None
+
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
+        user_spec_pairs = bad_corr_spec_pairs,
 		pn_filepath = None,
 		plot_log = False,
 		zscore_filepath = "bad_corr.tsv",
@@ -279,6 +282,7 @@ def generate_corr_matrix(
 
     good_correlation_vis, = repScatters_tsv(
         source = good_metadata,
+        user_spec_pairs = good_corr_spec_pairs,
         pn_filepath = None,
         plot_log = False,
         zscore_filepath = "good_corr.tsv",
