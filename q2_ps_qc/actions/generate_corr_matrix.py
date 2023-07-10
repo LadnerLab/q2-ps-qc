@@ -247,6 +247,10 @@ def generate_corr_matrix(
 
     score_fh.close()
 
+    # align correlation reps to input matrix cols
+    bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
+    good_corr_replicates = [rep for rep in replicates if rep in good_corr_replicates]
+
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
     bad_metadata = generate_metadata(bad_corr_replicates)
