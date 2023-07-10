@@ -1,14 +1,27 @@
 #!/usr/bin/env python
-import pandas as pd
-import csv
-import os
-import numpy as np
+
 import altair as alt
+import csv
+import numpy as np
+import os
+import pandas as pd
 import qiime2
+
+from itertools import combinations
 
 from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
 from qiime2.plugin import MetadataColumn
 from qiime2.plugin import Metadata
+
+# TODO: add description
+def rfind(pattern, string):
+    new_string = ""
+    split_string = string.split(pattern)
+    for i in range(len(split_string) - 1):
+        if i > 0:
+            new_string += "_"
+        new_string += split_string[i]
+    return new_string
 
 
 def generate_corr_tsv(data, corr_file_name, corr_replicates):
@@ -62,7 +75,7 @@ def generate_metadata(replicates):
     replicates.sort()
 
     for replicate in replicates:
-        base_sequence_name = replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
+        base_sequence_name = rfind("_", replicate)
         base_replicates.append(base_sequence_name)
 
     metadata_series = pd.Series(data=base_replicates, index=replicates)
@@ -72,9 +85,32 @@ def generate_metadata(replicates):
 
     return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
-
-def generate_corr_matrix(ctx, data, log_normalization = False, correlation_threshold = 0.8):
+def generate_corr_matrix(
+        ctx,
+        data,
+        samples=None,
+        log_normalization=False,
+        correlation_threshold=0.8
+):
     LN_CONSTANT = 11
+
+    # samples dictionary stores a list of sample replicates at a key defined
+    # by the base sequence
+    user_spec_pairs = []
+    if samples is not None:
+        # read samples into memory
+        user_spec_reps = []
+        with open(samples, "r") as samples:
+            lines = samples.readlines()
+            for line in lines:
+                split_line = line.replace("\n", "").split("\t")
+                user_spec_reps.append(split_line)
+        # organize samples into pair list where all possible combinations of
+        # those on a line are considered
+        for group in user_spec_reps:
+            user_spec_pairs.extend(list(combinations(group, 2)))
+    else: # assume there will be no pairs
+        user_spec_pairs = None
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
@@ -101,7 +137,7 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
 
             if not looking_for_second_pair:
                 replicate_pair_dict = {}
-                base_sequence_name = current_replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0]
+                base_sequence_name = rfind("_", current_replicate)
 
                 temp_index = index
                 first_pair_index = index
@@ -113,8 +149,7 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
                 continue
 
             # Check if current replicate has matching base sequence name
-            if looking_for_second_pair and current_replicate.split('_A')[0].split('_B')[0].split('_P3')[0].split('_P4')[0] \
-                    == base_sequence_name:
+            if looking_for_second_pair and rfind("_", current_replicate) == base_sequence_name:
                 second_pair_index = index
 
                 replicate_pair_dict[current_replicate] = []
@@ -174,21 +209,23 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
-                        if score_found and temp_score != '2.0':
-                            if float(temp_score) < correlation_threshold:
-                                bad_corr_replicates.append(replicate)
-                            elif float(temp_score) >= correlation_threshold:
-                                good_corr_replicates.append(replicate)
-                        for score in matrix.get(replicate):
-                            # TODO: create a check for if all four entries in matrix are 1.0
-                            if score != 1.0 and not score_found:
-                                temp_score = str(score)
-                                score_found = True
-
-                                if score < correlation_threshold:
+                        # check replicate has not been examined yet
+                        if replicate not in good_corr_replicates \
+                                and replicate not in bad_corr_replicates:
+                            if score_found and temp_score != '2.0':
+                                if float(temp_score) < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
-                                elif score >= correlation_threshold:
+                                elif float(temp_score) >= correlation_threshold:
                                     good_corr_replicates.append(replicate)
+                            for score in matrix.get(replicate):
+                                if score != 1.0 and not score_found:
+                                    temp_score = str(score)
+                                    score_found = True
+
+                                    if score < correlation_threshold:
+                                        bad_corr_replicates.append(replicate)
+                                    elif score >= correlation_threshold:
+                                        good_corr_replicates.append(replicate)
 
                 looking_for_second_pair = False
 
@@ -218,8 +255,23 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
     generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
 
+    # put user pairs in a format qiime2 can work with
+    if user_spec_pairs is not None:
+        bad_corr_spec_pairs = [
+            rep for pair in user_spec_pairs for rep in pair \
+            if rep in bad_corr_replicates
+        ]
+        good_corr_spec_pairs = [
+            rep for pair in user_spec_pairs for rep in pair \
+            if rep in good_corr_replicates
+        ]
+    else:
+        bad_corr_spec_pairs = None
+        good_corr_spec_pairs = None
+
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
+        user_spec_pairs = bad_corr_spec_pairs,
 		pn_filepath = None,
 		plot_log = False,
 		zscore_filepath = "bad_corr.tsv",
@@ -230,6 +282,7 @@ def generate_corr_matrix(ctx, data, log_normalization = False, correlation_thres
 
     good_correlation_vis, = repScatters_tsv(
         source = good_metadata,
+        user_spec_pairs = good_corr_spec_pairs,
         pn_filepath = None,
         plot_log = False,
         zscore_filepath = "good_corr.tsv",
