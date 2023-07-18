@@ -3,6 +3,7 @@ This is a repository for a future Qiime2 plugin that allows users to run various
 
 ## Dependencies
 - qiime2-2021.11
+- q2-pepsirf v2021.12
 - q2-ps-plot v2021.9.15
 
 ## Installation
@@ -17,6 +18,7 @@ pip install -U git+https://github.com/LadnerLab/q2-ps-qc.git
 ```
 
 ## Tutoral
+[no link]
 
 ## More Information
 [no link]
