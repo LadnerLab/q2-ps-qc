@@ -81,7 +81,6 @@ def generate_metadata(replicates):
     metadata_series = pd.Series(data=base_replicates, index=replicates)
     metadata_series.index.name = 'sample-id'
     metadata_series.name = 'source'
-    print(metadata_series)
 
     return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
@@ -235,7 +234,12 @@ def generate_corr_matrix(
             else:
                 distance_between_indices += 1
                 if index == len(replicates) - 1:
-                    print("Second pair not found; either it's already been found or there is no second pair")
+                    print(
+                        ("Second pair not found sample %s;"
+                         + " either it's already been found or there is no"
+                         + " second pair"
+                         ) % current_replicate
+                    )
                     looking_for_second_pair = False
                     distance_between_indices = 0
                     index = temp_index
