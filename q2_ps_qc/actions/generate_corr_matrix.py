@@ -13,7 +13,8 @@ from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
 from qiime2.plugin import MetadataColumn
 from qiime2.plugin import Metadata
 
-# TODO: add description
+# finds the right most pattern in `string` with matches the given pattern
+# `pattern`; returns the left string of split at `pattern`
 def rfind(pattern, string):
     new_string = ""
     split_string = string.split(pattern)
@@ -235,7 +236,7 @@ def generate_corr_matrix(
                 distance_between_indices += 1
                 if index == len(replicates) - 1:
                     print(
-                        ("Second pair not found sample %s;"
+                        ("Second pair for sample %s not found;"
                          + " either it's already been found or there is no"
                          + " second pair"
                          ) % current_replicate
