@@ -22,7 +22,8 @@ from q2_types.feature_table import FeatureTable, BIOMV210DirFmt
 # interface will interact with. Basically every registration we perform will
 # involve this object in some way.
 plugin = Plugin(
-    "q2-ps-qc", version = q2_ps_qc.__version__,
+    "q2-ps-qc",
+    version = q2_ps_qc.__version__,
     website = "https://github.com/LadnerLab/q2-ps-qc",
     description = "Qiime2 Plug-in for the creation of correlation visualizations from PepSIRF outputs."
 )

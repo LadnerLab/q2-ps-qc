@@ -79,8 +79,8 @@ def generate_metadata(replicates):
         base_replicates.append(base_sequence_name)
 
     metadata_series = pd.Series(data=base_replicates, index=replicates)
-    metadata_series.index.name = 'sample-id'
-    metadata_series.name = 'source'
+    metadata_series.index.name = "sample-id"
+    metadata_series.name = "source"
 
     return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
 
@@ -119,7 +119,7 @@ def generate_corr_matrix(
     replicates = scores[0].replace("\n", "").split("\t")
     replicates.pop(0)
 
-    repScatters_tsv = ctx.get_action('ps-plot', 'repScatters_tsv')
+    repScatters_tsv = ctx.get_action("ps-plot", "repScatters_tsv")
 
     first_pair_index = 0
     second_pair_index = 0
@@ -157,7 +157,7 @@ def generate_corr_matrix(
                 row_index = 1
                 try:
                     while True:
-                        row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
+                        row = scores[row_index].replace("\n", "").replace("nan", "0").split("\t")
                         row.pop(0)
 
                         # Check log normaliztion flag and calculate score from the index associated the first pair
@@ -202,16 +202,16 @@ def generate_corr_matrix(
 
                 # Create a data frame & convert it into a correlation matrix
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
-                corr_matrix = [data_frame.corr(method='pearson')]
+                corr_matrix = [data_frame.corr(method="pearson")]
 
                 for matrix in corr_matrix:
                     score_found = False
-                    temp_score = '2.0'
+                    temp_score = "2.0"
                     for replicate in matrix:
                         # check replicate has not been examined yet
                         if replicate not in good_corr_replicates \
                                 and replicate not in bad_corr_replicates:
-                            if score_found and temp_score != '2.0':
+                            if score_found and temp_score != "2.0":
                                 if float(temp_score) < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
                                 elif float(temp_score) >= correlation_threshold:
@@ -299,5 +299,5 @@ def generate_corr_matrix(
         xy_threshold = None
     )
 
-    return bad_correlation_vis, good_correlation_vis
+    return (bad_correlation_vis, good_correlation_vis)
 
