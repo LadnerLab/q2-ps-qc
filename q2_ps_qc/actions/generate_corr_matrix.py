@@ -24,19 +24,16 @@ def rfind(pattern, string):
     return new_string
 
 
-def generate_corr_tsv(data, corr_file_name, corr_replicates):
-    score_fh = open(data, "r")
+def generate_corr_tsv(scores, corr_file_name, corr_replicates):
     corr_fh = open(corr_file_name, "w")
-    scores = score_fh.readlines()
-    replicates = scores[0].replace("\n", "").split("\t")
-    replicates.pop(0)
+    # replicates = scores[0].replace("\n", "").split("\t")
+    replicates = scores.columns.to_list()
+    sequences = scores.index.to_list()
 
-    corr_fh.write("Sequence name\t")
+    corr_fh.write("Sequence name")
 
-    for replicate in corr_replicates[:-1]:
-        corr_fh.write(replicate)
-        corr_fh.write("\t")
-    corr_fh.write(corr_replicates[len(corr_replicates) - 1])
+    for replicate in corr_replicates:
+        corr_fh.write(f"\t{replicate}")
     corr_fh.write("\n")
 
     row_index = 1
@@ -44,11 +41,12 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
         while True:
             # Create a list of all the scores in the current row
             # Replace all 'nan' values with '0' and remove first element as it is not a score
-            row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
+            # row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
+            row = scores.iloc[row_index, :].fillna(0)
 
             # Write the sequence name, then pop the sequence name from the row list
-            corr_fh.write(row[0])
-            row.pop(0)
+            # corr_fh.write(row[0])
+            corr_fh.write(f"{sequences[row_index]}")
 
             # Loop through each score in the row list
             score_index = 0
@@ -58,13 +56,13 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
 
                 # Check if the replicate matches the replicate in the predicted correlation file
                 if replicate in corr_replicates:
-                    corr_fh.write("\t")
-                    corr_fh.write(row[score_index])
+                    corr_fh.write(f"\t{row[score_index]}")
 
                 score_index += 1
 
             corr_fh.write("\n")
             row_index += 1
+
     except EOFError and IndexError:
         pass
 
@@ -113,12 +111,11 @@ def generate_corr_matrix(
         user_spec_pairs = None
 
     # Open the file with replicate scores
-    score_fh = open(data, "r")
-    scores = score_fh.readlines()
+    scores = pd.read_csv(data, sep="\t", index_col=0)
 
     # Get the names of all the replicates in the input file
-    replicates = scores[0].replace("\n", "").split("\t")
-    replicates.pop(0)
+    # replicates = scores[0].replace("\n", "").split("\t")
+    replicates = scores.columns.to_list()
 
     repScatters_tsv = ctx.get_action('ps-plot', 'repScatters_tsv')
 
@@ -158,8 +155,8 @@ def generate_corr_matrix(
                 row_index = 1
                 try:
                     while True:
-                        row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
-                        row.pop(0)
+                        # row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
+                        row = scores.iloc[row_index, :].to_list().fillna(0)
 
                         # Check log normaliztion flag and calculate score from the index associated the first pair
                         if log_normalization:
@@ -245,18 +242,16 @@ def generate_corr_matrix(
     except EOFError and IndexError:
         pass
 
-    score_fh.close()
-
     # align correlation reps to input matrix cols
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
     good_corr_replicates = [rep for rep in replicates if rep in good_corr_replicates]
 
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
+    generate_corr_tsv(scores, "bad_corr.tsv", bad_corr_replicates)
     bad_metadata = generate_metadata(bad_corr_replicates)
 
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
+    generate_corr_tsv(scores, "good_corr.tsv", good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
 
     # put user pairs in a format qiime2 can work with
@@ -296,4 +291,3 @@ def generate_corr_matrix(
     )
 
     return bad_correlation_vis, good_correlation_vis
-
