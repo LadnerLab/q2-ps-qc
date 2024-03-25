@@ -13,6 +13,14 @@ from q2_pepsirf.format_types import PepsirfContingencyTSVFormat
 from qiime2.plugin import MetadataColumn
 from qiime2.plugin import Metadata
 
+
+DEFAULT_REPLICATES = ["null_1", "null_2"]
+DEFAULT_SCORES_DF = pd.DataFrame({
+    "null_1": [0],
+    "null_2": [0]
+})
+
+
 # TODO: add description
 def rfind(pattern, string):
     new_string = ""
@@ -155,8 +163,7 @@ def generate_corr_matrix(
                 row_index = 1
                 try:
                     while True:
-                        # row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
-                        row = scores.iloc[row_index, :].to_list().fillna(0)
+                        row = scores.iloc[row_index, :].fillna(0)
 
                         # Check log normaliztion flag and calculate score from the index associated the first pair
                         if log_normalization:
@@ -247,12 +254,20 @@ def generate_corr_matrix(
     good_corr_replicates = [rep for rep in replicates if rep in good_corr_replicates]
 
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(scores, "bad_corr.tsv", bad_corr_replicates)
-    bad_metadata = generate_metadata(bad_corr_replicates)
+    if len(bad_corr_replicates) > 0:
+        generate_corr_tsv(scores, "bad_corr.tsv", bad_corr_replicates)
+        bad_metadata = generate_metadata(bad_corr_replicates)
+    else:
+        generate_corr_tsv(DEFAULT_SCORES_DF, "bad_corr.tsv", DEFAULT_REPLICATES)
+        bad_metadata = generate_metadata(DEFAULT_REPLICATES)
 
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(scores, "good_corr.tsv", good_corr_replicates)
-    good_metadata = generate_metadata(good_corr_replicates)
+    if len(good_corr_replicates) > 0:
+        generate_corr_tsv(scores, "good_corr.tsv", good_corr_replicates)
+        good_metadata = generate_metadata(good_corr_replicates)
+    else:
+        generate_corr_tsv(DEFAULT_SCORES_DF, "good_corr.tsv", DEFAULT_REPLICATES)
+        good_metadata = generate_metadata(DEFAULT_REPLICATES)
 
     # put user pairs in a format qiime2 can work with
     if user_spec_pairs is not None:
