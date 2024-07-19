@@ -62,12 +62,14 @@ plugin.pipelines.register_function(
 
 
 shared_parameters = {   "count_thresh": Float,
-                        "max_zeros": Int
+                        "max_zeros": Int,
+                        "drop_samp_out": Str
 }
 shared_descriptions = { "count_thresh": "Minimum sequence count to not be filtered out. If None is provided,"
                             " default is 2x the total number of unique peptides.",
                         "max_zeros": "Maximum number of zero counts a sequence needs to not be filtered out. If"
-                        " None is provided, default is 25% of the total number of unique peptides"
+                            " None is provided, default is 25% of the total number of unique peptides",
+                        "drop_samp_out": "Filepath to output sample names that are filtered out of matrix."
 }
 
 plugin.methods.register_function(
