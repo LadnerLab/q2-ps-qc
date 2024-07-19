@@ -34,6 +34,9 @@ def filter_counts_matrix(
         else:
             filtered_samp.append(col)
 
+    assert len(filtered_samp) > 0, \
+        "None of the samples meet with the given threshold(s)"
+
     table[filtered_samp].to_csv(str(filtered_matrix_filepath), sep="\t")
     pd.DataFrame(dropped_samp, columns=['Sample name', 'Count', 'NumZeros']).to_csv(drop_samp_out, sep='\t', index=False)
     
