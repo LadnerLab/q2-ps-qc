@@ -35,7 +35,9 @@ plugin.pipelines.register_function(
         "data": Str,
         "samples": Str,
         "log_normalization": Bool,
-        "correlation_threshold": Float
+        "correlation_threshold": Float,
+        "score_threshold": Int
+
     },
     parameter_descriptions = {
 		"data": "Name of input file.",
@@ -45,9 +47,13 @@ plugin.pipelines.register_function(
             " containing a set of replicates.",
         "log_normalization": "Run a log normalization on each of the sets of"
             " scores before running a correlation test on them.",
-        "correlation_threshold": "Set a threshold value; anything below the"
-            " value will be considered a bad correlation score, and anything"
+        "correlation_threshold": "Set a correlation threshold value; anything"
+            " below the value will be considered a bad correlation score, and anything"
             " above will be considered a good correlation score.",
+        "score_threshold": "Set a score threshold value; peptides with a"
+            "minimum score across both replicates below this threshold will"
+            "be removed before calculating the correlation. If log_normalization"
+            "is true this value will be log normalized prior to correlation calculation."
     },
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {

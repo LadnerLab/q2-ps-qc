@@ -90,7 +90,9 @@ def generate_corr_matrix(
         data,
         samples=None,
         log_normalization=False,
-        correlation_threshold=0.8
+        correlation_threshold=0.8,
+        score_threshold=None
+
 ):
     LN_CONSTANT = 11
 
@@ -202,8 +204,15 @@ def generate_corr_matrix(
                     pass
 
                 # Create a data frame & convert it into a correlation matrix
-                data_frame = pd.DataFrame(data=replicate_pair_dict)
-                corr_matrix = [data_frame.corr(method='pearson')]
+                df = pd.DataFrame(data=replicate_pair_dict)
+                if score_threshold:
+                    if log_normalization:
+                        filtered_df = df[(df >= (np.log10(10 + LN_CONSTANT) - np.log10(LN_CONSTANT))).all(axis=1)]
+                    else:
+                        filtered_df = df[(df >= 10).all(axis=1)]
+                        corr_matrix = [filtered_df.corr(method='pearson')]
+                else:
+                    corr_matrix = [df.corr(method='pearson')]
 
                 for matrix in corr_matrix:
                     score_found = False
