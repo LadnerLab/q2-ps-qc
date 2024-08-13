@@ -74,7 +74,7 @@ def generate_corr_output(matrix,pairName,outFile):
             fout.write('PairName\tCorrelation')
         else:
             pearson_corr = matrix[1][0]
-            fout.write(f"{pairName}\t{pearson_corr\n}")
+            fout.write(f"{pairName}\t{pearson_corr}\n")
 
 
 def generate_metadata(replicates):
