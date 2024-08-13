@@ -232,7 +232,7 @@ def generate_corr_matrix(
                                     temp_score = str(score)
                                     score_found = True
                                     # Generate output dict for scores
-                                    sample = replicate.rsplit('_',1)
+                                    sample = replicate.rsplit('_',1)[0]
                                     scoreD[sample] = score
 
                                     if score < correlation_threshold:
