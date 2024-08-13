@@ -203,8 +203,9 @@ def generate_corr_matrix(
 
                 # Create a data frame & convert it into a correlation matrix
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
+                data_frame.to_csv('df_output.tsv',sep='\t')
                 corr_matrix = [data_frame.corr(method='pearson')]
-                np.savetxt("output.tsv", corr_matrix, delimiter="\t")
+                #np.savetxt("output.tsv", corr_matrix, delimiter="\t")
 
                 for matrix in corr_matrix:
                     score_found = False
