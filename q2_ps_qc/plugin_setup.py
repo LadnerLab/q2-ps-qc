@@ -58,7 +58,7 @@ plugin.pipelines.register_function(
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {
         "bad_output": "File name for bad correlation visualization",
-        "good_output": "File name for good correlation visualization"
+        "good_output": "File name for good correlation visualization",
     },
     name = "Generate Correlation Matrix",
     description = "Finds all replicate pairs that have poor correlation and"

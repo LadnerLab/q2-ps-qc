@@ -22,7 +22,12 @@ def rfind(pattern, string):
             new_string += "_"
         new_string += split_string[i]
     return new_string
-
+    
+def writeDict(dct, keyHeader, valHeader, outname, delim="\t"):
+    with open(outname, "w") as fout:
+        fout.write(f"{keyHeader}{delim}{valHeader}\n")
+        for k, v in dct.items():
+            fout.write(f"{k}{delim}{v}\n")
 
 def generate_corr_tsv(data, corr_file_name, corr_replicates):
     score_fh = open(data, "r")
@@ -67,7 +72,6 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
             row_index += 1
     except EOFError and IndexError:
         pass
-
 
 def generate_metadata(replicates):
     base_replicates = []
@@ -133,6 +137,7 @@ def generate_corr_matrix(
     replicate_pair_dict = {}
     bad_corr_replicates = []
     good_corr_replicates = []
+    scoreD = {}
     try:
         while True:
             current_replicate = replicates[index]
@@ -230,6 +235,9 @@ def generate_corr_matrix(
                                 if score != 1.0 and not score_found:
                                     temp_score = str(score)
                                     score_found = True
+                                    # Generate output dict for scores
+                                    sample = replicate.rsplit('_',1)[0]
+                                    scoreD[sample] = score
 
                                     if score < correlation_threshold:
                                         bad_corr_replicates.append(replicate)
@@ -255,6 +263,9 @@ def generate_corr_matrix(
         pass
 
     score_fh.close()
+    
+    # Create output correlation file
+    writeDict(scoreD, 'SampleID', 'Correlation', "Correlation_output.tsv", delim="\t")
 
     # align correlation reps to input matrix cols
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
@@ -267,7 +278,7 @@ def generate_corr_matrix(
     # Create Zscore matrix and metadata for bad correlation replicates
     generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
-
+    
     # put user pairs in a format qiime2 can work with
     if user_spec_pairs is not None:
         bad_corr_spec_pairs = [
@@ -283,15 +294,15 @@ def generate_corr_matrix(
         good_corr_spec_pairs = None
 
     bad_correlation_vis, = repScatters_tsv(
-		source = bad_metadata,
+        source = bad_metadata,
         user_spec_pairs = bad_corr_spec_pairs,
-		pn_filepath = None,
-		plot_log = False,
-		zscore_filepath = "bad_corr.tsv",
-		col_sum_filepath = None,
-		facet_charts = False,
-		xy_threshold = None
-	)
+        pn_filepath = None,
+        plot_log = False,
+        zscore_filepath = "bad_corr.tsv",
+        col_sum_filepath = None,
+        facet_charts = False,
+        xy_threshold = None
+    )
 
     good_correlation_vis, = repScatters_tsv(
         source = good_metadata,
