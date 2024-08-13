@@ -68,6 +68,14 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
     except EOFError and IndexError:
         pass
 
+def generate_corr_output(matrix,pairName,outFile):
+    with open(outFile,'w') as fout:
+        if index == 0:
+            fout.write('PairName\tCorrelation')
+        else:
+            pearson_corr = matrix[1][0]
+            fout.write(f"{pairName}\t{pearson_corr\n}")
+
 
 def generate_metadata(replicates):
     base_replicates = []
@@ -209,6 +217,7 @@ def generate_corr_matrix(
 
                 for matrix in corr_matrix:
                     np.savetxt("output.tsv", matrix, delimiter="\t")
+                    generate_corr_output(matrix,base_sequence_name,'Matrix_output_test.tsv')
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
