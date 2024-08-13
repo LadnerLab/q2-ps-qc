@@ -96,7 +96,8 @@ def generate_corr_matrix(
         data,
         samples=None,
         log_normalization=False,
-        correlation_threshold=0.8
+        correlation_threshold=0.8,
+        corr_output="Correlation_output.tsv"
 ):
     LN_CONSTANT = 11
 
@@ -261,7 +262,7 @@ def generate_corr_matrix(
     score_fh.close()
     
     # Create output correlation file
-    writeDict(scoreD, 'SampleID', 'Correlation', 'Sample_Correlation_output.tsv', delim="\t")
+    writeDict(scoreD, 'SampleID', 'Correlation', corr_output, delim="\t")
 
     # align correlation reps to input matrix cols
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
