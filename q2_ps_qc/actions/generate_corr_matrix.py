@@ -29,8 +29,6 @@ def writeDict(dct, keyHeader, valHeader, outname, delim="\t"):
         for k, v in dct.items():
             fout.write(f"{k}{delim}{v}\n")
 
-
-
 def generate_corr_tsv(data, corr_file_name, corr_replicates):
     score_fh = open(data, "r")
     corr_fh = open(corr_file_name, "w")
@@ -97,7 +95,6 @@ def generate_corr_matrix(
         samples=None,
         log_normalization=False,
         correlation_threshold=0.8,
-        corr_output="Correlation_output.tsv"
 ):
     LN_CONSTANT = 11
 
@@ -211,12 +208,9 @@ def generate_corr_matrix(
 
                 # Create a data frame & convert it into a correlation matrix
                 data_frame = pd.DataFrame(data=replicate_pair_dict)
-                data_frame.to_csv('df_output.tsv',sep='\t')
                 corr_matrix = [data_frame.corr(method='pearson')]
-                #np.savetxt("output.tsv", corr_matrix, delimiter="\t")
 
                 for matrix in corr_matrix:
-                    np.savetxt("output.tsv", matrix, delimiter="\t")
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
@@ -262,7 +256,7 @@ def generate_corr_matrix(
     score_fh.close()
     
     # Create output correlation file
-    writeDict(scoreD, 'SampleID', 'Correlation', corr_output, delim="\t")
+    writeDict(scoreD, 'SampleID', 'Correlation', "Correlation_output.tsv", delim="\t")
 
     # align correlation reps to input matrix cols
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]

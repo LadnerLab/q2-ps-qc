@@ -35,8 +35,7 @@ plugin.pipelines.register_function(
         "data": Str,
         "samples": Str,
         "log_normalization": Bool,
-        "correlation_threshold": Float,
-        "corr_output":Str
+        "correlation_threshold": Float
     },
     parameter_descriptions = {
 		"data": "Name of input file.",
@@ -49,8 +48,6 @@ plugin.pipelines.register_function(
         "correlation_threshold": "Set a threshold value; anything below the"
             " value will be considered a bad correlation score, and anything"
             " above will be considered a good correlation score.",
-        "corr_output": "File name for output correlation TSV file"
-
     },
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {
