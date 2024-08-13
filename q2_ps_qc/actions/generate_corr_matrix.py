@@ -208,6 +208,7 @@ def generate_corr_matrix(
                 #np.savetxt("output.tsv", corr_matrix, delimiter="\t")
 
                 for matrix in corr_matrix:
+                    np.savetxt("output.tsv", corr_matrix, delimiter="\t")
                     score_found = False
                     temp_score = '2.0'
                     for replicate in matrix:
