@@ -232,7 +232,8 @@ def generate_corr_matrix(
                                     temp_score = str(score)
                                     score_found = True
                                     # Generate output dict for scores
-                                    scoreD[replicate] = score
+                                    sample = replicate.rsplit('_',1)
+                                    scoreD[sample] = score
 
                                     if score < correlation_threshold:
                                         bad_corr_replicates.append(replicate)
@@ -258,6 +259,9 @@ def generate_corr_matrix(
         pass
 
     score_fh.close()
+    
+    # Create output correlation file
+    writeDict(scoreD, 'SampleID', 'Correlation', 'Sample_Correlation_output.tsv', delim="\t")
 
     # align correlation reps to input matrix cols
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
@@ -271,9 +275,6 @@ def generate_corr_matrix(
     generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
     
-    # Create output correlation file
-    writeDict(scoreD, 'Replicate', 'Correlation', 'corr_test_output.tsv', delim="\t")
-
     # put user pairs in a format qiime2 can work with
     if user_spec_pairs is not None:
         bad_corr_spec_pairs = [
