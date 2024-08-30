@@ -33,64 +33,75 @@ def generate_corr_tsv(data, corr_file_name, corr_replicates):
 
     corr_fh.write("Sequence name\t")
 
-    for replicate in corr_replicates[:-1]:
-        corr_fh.write(replicate)
-        corr_fh.write("\t")
-    corr_fh.write(corr_replicates[len(corr_replicates) - 1])
-    corr_fh.write("\n")
+    # test if corr_repliates were given
+    if corr_replicates:
+        for replicate in corr_replicates[:-1]:
+            corr_fh.write(replicate)
+            corr_fh.write("\t")
+        corr_fh.write(corr_replicates[len(corr_replicates) - 1])
+        corr_fh.write("\n")
 
-    row_index = 1
-    try:
-        while True:
-            # Create a list of all the scores in the current row
-            # Replace all 'nan' values with '0' and remove first element as it is not a score
-            row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
+        row_index = 1
+        try:
+            while True:
+                # Create a list of all the scores in the current row
+                # Replace all 'nan' values with '0' and remove first element as it is not a score
+                row = scores[row_index].replace("\n", "").replace('nan', '0').split("\t")
 
-            # Write the sequence name, then pop the sequence name from the row list
-            corr_fh.write(row[0])
-            row.pop(0)
+                # Write the sequence name, then pop the sequence name from the row list
+                corr_fh.write(row[0])
+                row.pop(0)
 
-            # Loop through each score in the row list
-            score_index = 0
-            while score_index < len(row):
-                # Get the name of the replicate associated with the current score
-                replicate = replicates[score_index]
+                # Loop through each score in the row list
+                score_index = 0
+                while score_index < len(row):
+                    # Get the name of the replicate associated with the current score
+                    replicate = replicates[score_index]
 
-                # Check if the replicate matches the replicate in the predicted correlation file
-                if replicate in corr_replicates:
-                    corr_fh.write("\t")
-                    corr_fh.write(row[score_index])
+                    # Check if the replicate matches the replicate in the predicted correlation file
+                    if replicate in corr_replicates:
+                        corr_fh.write("\t")
+                        corr_fh.write(row[score_index])
 
-                score_index += 1
+                    score_index += 1
 
-            corr_fh.write("\n")
-            row_index += 1
-    except EOFError and IndexError:
-        pass
+                corr_fh.write("\n")
+                row_index += 1
+        except EOFError and IndexError:
+            pass
+
+    score_fh.close()
+    corr_fh.close()
 
 
 def generate_metadata(replicates):
     base_replicates = []
 
-    replicates.sort()
+    if replicates:
 
-    for replicate in replicates:
-        base_sequence_name = rfind("_", replicate)
-        base_replicates.append(base_sequence_name)
+        replicates.sort()
 
-    metadata_series = pd.Series(data=base_replicates, index=replicates)
-    metadata_series.index.name = 'sample-id'
-    metadata_series.name = 'source'
-    print(metadata_series)
+        for replicate in replicates:
+            base_sequence_name = rfind("_", replicate)
+            base_replicates.append(base_sequence_name)
 
-    return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
+        metadata_series = pd.Series(data=base_replicates, index=replicates)
+        metadata_series.index.name = 'sample-id'
+        metadata_series.name = 'source'
+        print(metadata_series)
+
+        return qiime2.metadata.CategoricalMetadataColumn(metadata_series)
+    else:
+        return None
 
 def generate_corr_matrix(
         ctx,
         data,
         samples=None,
         log_normalization=False,
-        correlation_threshold=0.8
+        correlation_threshold=0.8,
+        bad_corr_out="bad_corr.tsv",
+        good_corr_out="good_corr.tsv"
 ):
     LN_CONSTANT = 11
 
@@ -251,34 +262,44 @@ def generate_corr_matrix(
     bad_corr_replicates = [rep for rep in replicates if rep in bad_corr_replicates]
     good_corr_replicates = [rep for rep in replicates if rep in good_corr_replicates]
 
+    bad_corr_rep_found = len(bad_corr_replicates) != 0
+    good_corr_rep_found = len(good_corr_replicates) != 0
+    if not bad_corr_rep_found and good_corr_rep_found:
+        print("No bad correlation replicates found.")
+    elif bad_corr_rep_found and not good_corr_rep_found:
+        print("No good correlation replicates found.")
+    else:
+        print("Neither good or bad correlation replicates found.")
+        
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(data, "bad_corr.tsv", bad_corr_replicates)
+    generate_corr_tsv(data, bad_corr_out, bad_corr_replicates)
     bad_metadata = generate_metadata(bad_corr_replicates)
 
     # Create Zscore matrix and metadata for bad correlation replicates
-    generate_corr_tsv(data, "good_corr.tsv", good_corr_replicates)
+    generate_corr_tsv(data, good_corr_out, good_corr_replicates)
     good_metadata = generate_metadata(good_corr_replicates)
 
     # put user pairs in a format qiime2 can work with
+    bad_corr_spec_pairs = None
+    good_corr_spec_pairs = None
     if user_spec_pairs is not None:
-        bad_corr_spec_pairs = [
-            rep for pair in user_spec_pairs for rep in pair \
-            if rep in bad_corr_replicates
-        ]
-        good_corr_spec_pairs = [
-            rep for pair in user_spec_pairs for rep in pair \
-            if rep in good_corr_replicates
-        ]
-    else:
-        bad_corr_spec_pairs = None
-        good_corr_spec_pairs = None
-
+        if bad_corr_rep_found:
+            bad_corr_spec_pairs = [
+                rep for pair in user_spec_pairs for rep in pair \
+                if rep in bad_corr_replicates
+            ]
+        if good_corr_rep_found:
+            good_corr_spec_pairs = [
+                rep for pair in user_spec_pairs for rep in pair \
+                if rep in good_corr_replicates
+            ]
+        
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
         user_spec_pairs = bad_corr_spec_pairs,
 		pn_filepath = None,
 		plot_log = False,
-		zscore_filepath = "bad_corr.tsv",
+		zscore_filepath = bad_corr_out,
 		col_sum_filepath = None,
 		facet_charts = False,
 		xy_threshold = None
@@ -289,7 +310,7 @@ def generate_corr_matrix(
         user_spec_pairs = good_corr_spec_pairs,
         pn_filepath = None,
         plot_log = False,
-        zscore_filepath = "good_corr.tsv",
+        zscore_filepath = good_corr_out,
         col_sum_filepath = None,
         facet_charts = False,
         xy_threshold = None

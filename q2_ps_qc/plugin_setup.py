@@ -35,7 +35,9 @@ plugin.pipelines.register_function(
         "data": Str,
         "samples": Str,
         "log_normalization": Bool,
-        "correlation_threshold": Float
+        "correlation_threshold": Float,
+        "bad_corr_out": Str,
+        "good_corr_out": Str
     },
     parameter_descriptions = {
 		"data": "Name of input file.",
@@ -48,6 +50,8 @@ plugin.pipelines.register_function(
         "correlation_threshold": "Set a threshold value; anything below the"
             " value will be considered a bad correlation score, and anything"
             " above will be considered a good correlation score.",
+        "bad_corr_out": "Name of output bad correlation replicates file.",
+        "good_corr_out": "Name of output good correlation replicates file."
     },
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {
