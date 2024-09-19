@@ -288,11 +288,18 @@ def generate_corr_matrix(
                 rep for pair in user_spec_pairs for rep in pair \
                 if rep in bad_corr_replicates
             ]
+
+            if len(bad_corr_spec_pairs) == 0:
+                bad_corr_spec_pairs = None
+
         if good_corr_rep_found:
             good_corr_spec_pairs = [
                 rep for pair in user_spec_pairs for rep in pair \
                 if rep in good_corr_replicates
             ]
+
+            if len(good_corr_spec_pairs) == 0:
+                good_corr_spec_pairs = None
         
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
