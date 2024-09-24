@@ -36,7 +36,8 @@ plugin.pipelines.register_function(
         "samples": Str,
         "log_normalization": Bool,
         "correlation_threshold": Float,
-        "score_threshold": Int
+        "score_threshold": Int,
+        "min_peptides": Int
 
     },
     parameter_descriptions = {
@@ -54,6 +55,8 @@ plugin.pipelines.register_function(
             "minimum score across both replicates below this threshold will"
             "be removed before calculating the correlation. If log_normalization"
             "is true this value will be log normalized prior to correlation calculation."
+        "min_peptides": "Set a minimum number of peptides that must be above the"
+            "score_threshold for a correlation to be calculated."
     },
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {
