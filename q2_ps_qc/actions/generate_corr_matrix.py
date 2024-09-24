@@ -240,7 +240,7 @@ def generate_corr_matrix(
                                     sample = replicate.rsplit('_',1)[0]
                                     if score_threshold:
                                         if len(filtered_df) > min_peptides:
-                                            scoreD[sample] = score
+                                            scoreD[sample] = len(filtered_df)
                                         else:
                                             scoreD[sample] = "Too few peptides above threshold."
                                     else:
