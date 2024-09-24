@@ -213,9 +213,9 @@ def generate_corr_matrix(
                 df = pd.DataFrame(data=replicate_pair_dict)
                 if score_threshold:
                     if log_normalization:
-                        filtered_df = df[(df >= (np.log10(10 + LN_CONSTANT) - np.log10(LN_CONSTANT))).all(axis=1)]
+                        filtered_df = df[(df >= (np.log10(score_threshold + LN_CONSTANT) - np.log10(LN_CONSTANT))).all(axis=1)]
                     else:
-                        filtered_df = df[(df >= 10).all(axis=1)]
+                        filtered_df = df[(df >= score_threshold).all(axis=1)]
                     corr_matrix = [filtered_df.corr(method='pearson')]
                 else:
                     corr_matrix = [df.corr(method='pearson')]
@@ -240,7 +240,7 @@ def generate_corr_matrix(
                                     sample = replicate.rsplit('_',1)[0]
                                     if score_threshold:
                                         if len(filtered_df) > min_peptides:
-                                            scoreD[sample] = len(filtered_df)
+                                            scoreD[sample] = score
                                         else:
                                             scoreD[sample] = "Too few peptides above threshold."
                                     else:
