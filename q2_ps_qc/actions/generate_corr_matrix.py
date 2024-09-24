@@ -95,7 +95,7 @@ def generate_corr_matrix(
         samples=None,
         log_normalization=False,
         correlation_threshold=0.8,
-        score_threshold=None
+        score_threshold=None,
         min_peptides=0
 
 ):
