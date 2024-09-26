@@ -231,7 +231,10 @@ def generate_corr_matrix(
                                 if float(temp_score) < correlation_threshold:
                                     bad_corr_replicates.append(replicate)
                                 elif float(temp_score) >= correlation_threshold:
-                                    good_corr_replicates.append(replicate)
+                                    if len(filtered_df) >= min_peptides:
+                                        good_corr_replicates.append(replicate)
+                                    if len(filtered_df) < min_peptides:
+                                        bad_corr_replicates.append(replicate)
                             for score in matrix.get(replicate):
                                 if score != 1.0 and not score_found:
                                     temp_score = str(score)
@@ -239,17 +242,21 @@ def generate_corr_matrix(
                                     # Generate output dict for scores
                                     sample = replicate.rsplit('_',1)[0]
                                     if score_threshold:
-                                        if len(filtered_df) > min_peptides:
+                                        if len(filtered_df) >= min_peptides:
                                             scoreD[sample] = score
+                                            if score < correlation_threshold:
+                                                bad_corr_replicates.append(replicate)
+                                            elif score >= correlation_threshold:
+                                                good_corr_replicates.append(replicate)
                                         else:
                                             scoreD[sample] = "Too few peptides above threshold."
-                                    else:
+                                            bad_corr_replicates.append(replicate)
+                                    if not score_threshold:
                                         scoreD[sample] = score
-
-                                    if score < correlation_threshold:
-                                        bad_corr_replicates.append(replicate)
-                                    elif score >= correlation_threshold:
-                                        good_corr_replicates.append(replicate)
+                                        if score < correlation_threshold:
+                                            bad_corr_replicates.append(replicate)
+                                        elif score >= correlation_threshold:
+                                            good_corr_replicates.append(replicate)
 
                 looking_for_second_pair = False
 
