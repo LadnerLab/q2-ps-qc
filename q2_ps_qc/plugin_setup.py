@@ -60,3 +60,41 @@ plugin.pipelines.register_function(
         " scatter plot."
 )
 
+plugin.pipelines.register_function(
+    function = actions.compareCS,
+    inputs = {},
+    input_descriptions = None,
+    parameters = {
+        "metadata_file": Str,
+        "fullname_column": Str,
+        "codename_column": Str,
+        "parent_codename_column": Str,
+        "zscores_file": Str,
+        "fasta_file": Str,
+        "min_zscore": Float,
+        "min_zscore_diff": Float,
+        "pep_seq_len": Int,
+        "min_epitope_size": Int,
+        "output_dir": Str,
+    },
+    parameter_descriptions = {
+        "metadata_file": "",
+        "fullname_column": "",
+        "codename_column": "Column denoting the codename of the sequence",
+        "parent_codename_column": "Column denoting the codename of the cysteine version of the sequence"
+            " for sequences in which cysteines were converted to serines",
+        "zscores_file": "",
+        "fasta_file": "",
+        "min_zscore": "",
+        "min_zscore_diff": "",
+        "pep_seq_len": "",
+        "min_epitope_size": "",
+        "output_dir": ""
+    },
+    outputs = [("reactivity_plot", Visualization)],
+	output_descriptions = {
+        "reactivity_plot": ""
+    },
+    name = "Compare C to S substitution reactivity",
+    description = ""
+)
