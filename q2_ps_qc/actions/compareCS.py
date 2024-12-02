@@ -179,36 +179,51 @@ def map_epitopes(
         s_epitopes = None
         c_reactivity_df = pd.DataFrame(c_reactivity_data, columns=["SequenceName", "StartPos", "EndPos", "Peptide", "Zscore"])
         if not c_reactivity_df.empty:
-            c_epitopes = get_epitopes(c_reactivity_df, max_distance)
-            for epitope in c_epitopes:
+            c_epitopes, opposite_epitopes = get_epitopes(c_reactivity_df, max_distance, sample_df, "C", "S")
+            for i in range(len(c_epitopes)):
+                epitope = c_epitopes[i]
                 sequence_name = epitope[0]
                 peps = epitope[1]
                 zscores = epitope[2]
                 inferred_epitope = get_inferred_epitope(fasta_dict, peps.split(","))
 
-                epitopes_data.append((sample_name, sequence_name, inferred_epitope, "C", peps, zscores))
+                opposite_epitope = opposite_epitopes[i]
+                opposite_peps = opposite_epitope[1]
+                opposite_zscores = opposite_epitope[2]
+                opposite_inferred_epitope = get_inferred_epitope(fasta_dict, opposite_peps.split(","))
+
+                epitopes_data.append((sample_name, sequence_name, "C", inferred_epitope, peps, zscores, "S", opposite_inferred_epitope, opposite_peps, opposite_zscores))
 
         s_reactivity_df = pd.DataFrame(s_reactivity_data, columns=["SequenceName", "StartPos", "EndPos", "Peptide", "Zscore"])
         if not s_reactivity_df.empty:
-            s_epitopes = get_epitopes(s_reactivity_df, max_distance)
-            for epitope in s_epitopes:
+            s_epitopes, opposite_epitopes = get_epitopes(s_reactivity_df, max_distance, sample_df, "S", "C")
+            for i in range(len(s_epitopes)):
+                epitope = s_epitopes[i]
                 sequence_name = epitope[0]
                 peps = epitope[1]
                 zscores = epitope[2]
                 inferred_epitope = get_inferred_epitope(fasta_dict, peps.split(","))
 
-                epitopes_data.append((sample_name, sequence_name, inferred_epitope, "S", peps, zscores))
+                opposite_epitope = opposite_epitopes[i]
+                opposite_peps = opposite_epitope[1]
+                opposite_zscores = opposite_epitope[2]
+                opposite_inferred_epitope = get_inferred_epitope(fasta_dict, opposite_peps.split(","))
 
-    formatted_epitope_df = pd.DataFrame(epitopes_data, columns=["Sample", "SequenceName", "InferredEpitope", "MoreReactiveVersion", "SupportingPeptides", "Zscores"])
+                epitopes_data.append((sample_name, sequence_name, "S", inferred_epitope, peps, zscores, "C", opposite_inferred_epitope, opposite_peps, opposite_zscores))
+
+    formatted_epitope_df = pd.DataFrame(epitopes_data, columns=["Sample", "SequenceName", "MoreReactiveVersion", "MoreReactiveInferredEpitope", "MoreReactiveSupportingPeptides", "MoreReactiveZscores", "LessReactiveVersion", "LessReactiveInferredEpitope", "LessReactiveSupportingPeptides", "LessReactiveZscores"])
         
     return raw_epitope_df, formatted_epitope_df
 
 
 # makes assumptions about column names
-def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int):
+def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int, sample_df: pd.DataFrame, index: str, opposite: str):
+    data_df = sample_df.set_index(f"{index} codename")
+
     # group by sequence name
     sequence_groups = reactivity_df.groupby('SequenceName')
     all_epitopes = list()
+    opposite_epitopes = list()
 
     for sequence_name, sequence_df in sequence_groups:
         # order by position
@@ -230,13 +245,27 @@ def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int):
             prev_pep_start_pos = row["StartPos"]
         
         for group in epitope_groups:
+            # add peptides and zscores for found epitope
+            peptides = [sequence_df.loc[i]["Peptide"] for i in group]
+            zscores = [str(sequence_df.loc[i]["Zscore"]) for i in group]
+
             all_epitopes.append((
                 sequence_name,
-                ",".join([sequence_df.loc[i]["Peptide"] for i in group]), 
-                ",".join([str(sequence_df.loc[i]["Zscore"]) for i in group])
+                ",".join(peptides), 
+                ",".join(zscores)
+            ))
+
+            # add peptides and zscores for opposite of found epitope
+            opposite_peptides = [data_df.loc[pep][f"{opposite} codename"] for pep in peptides]
+            opposite_zscores = [str(data_df.loc[pep][f"{opposite} z-score"]) for pep in peptides]
+
+            opposite_epitopes.append((
+                sequence_name,
+                ",".join(opposite_peptides), 
+                ",".join(opposite_zscores)
             ))
     
-    return all_epitopes
+    return all_epitopes, opposite_epitopes
 
 
 def extract_fullname_data(fullname: str):
