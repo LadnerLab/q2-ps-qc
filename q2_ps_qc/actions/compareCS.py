@@ -4,17 +4,20 @@ import pandas as pd
 import altair as alt
 import fastatools as ft
 import time
+from collections import defaultdict
 
 def compareCS(
         ctx,
         metadata_file,
-        fullname_column,
         codename_column,
         parent_codename_column,
         zscores_file,
         fasta_file,
+        fullname_column=None,
+        generate_epitope_data=False,
         min_zscore=8,
-        min_zscore_diff=0.3,
+        min_zscore_diff=0.5,
+        max_zscore_diff=0.1,
         pep_seq_len=30,
         min_epitope_size=7,
         output_dir="./output_data"
@@ -33,15 +36,18 @@ def compareCS(
     metadata = pd.read_csv(metadata_file, sep="\t")
 
     # validate input columns
-    if fullname_column not in metadata.columns:
-        raise ValueError(f"{fullname_column} column not found in metadata file")
     if codename_column not in metadata.columns:
-        raise ValueError(f"{codename_column} column not found in metadata file")
-    if parent_codename_column not in metadata.columns:
-        raise ValueError(f"{parent_codename_column} column not found in metadata file")
-    
-    # extract columns
-    metadata = metadata[[fullname_column, codename_column, parent_codename_column]]
+        raise ValueError(f"{codename_column} column not found in metadata file.")
+    elif parent_codename_column not in metadata.columns:
+        raise ValueError(f"{parent_codename_column} column not found in metadata file.")
+    elif fullname_column not in metadata.columns:
+        if generate_epitope_data:
+            raise ValueError(f"{fullname_column} column not found in metadata file. Turn off the generation of epitope data if fullname is not included.")
+        else:   
+            # extract columns
+            metadata = metadata[[codename_column, parent_codename_column]]
+    else:
+        metadata = metadata[[fullname_column, codename_column, parent_codename_column]]
 
     # validate zscores (doing this to avoid using qiime2 format types honestly)
     with open(zscores_file) as fh:
@@ -64,8 +70,8 @@ def compareCS(
 
     # create data dict
     data_dict = {
-        "C z-score": list(),
-        "S z-score": list(),
+        "C Z score": list(),
+        "S Z score": list(),
         "C codename": list(),
         "S codename": list(),
         "Sample Name": list()
@@ -77,16 +83,16 @@ def compareCS(
             s_zscore = float(filtered_zscores.loc[s_version, variant])
             # check if either meets the min zscore threshold
             if c_zscore >= min_zscore or s_zscore >= min_zscore:
-                data_dict["C z-score"].append(c_zscore)
-                data_dict["S z-score"].append(s_zscore)
+                data_dict["C Z score"].append(c_zscore)
+                data_dict["S Z score"].append(s_zscore)
                 data_dict["C codename"].append(c_version)
                 data_dict["S codename"].append(s_version)
                 data_dict["Sample Name"].append(variant)
 
     # generate graph
     chart, = scatter_plot(
-        x = data_dict["C z-score"],
-        y = data_dict["S z-score"],
+        x = data_dict["C Z score"],
+        y = data_dict["S Z score"],
         c_codenames = data_dict["C codename"],
         s_codenames = data_dict["S codename"],
         sample_names = data_dict["Sample Name"]
@@ -95,29 +101,124 @@ def compareCS(
     # output chart data
     data_df = pd.DataFrame.from_dict(data_dict)
     data_df.to_csv(os.path.join(output_dir, "reactivity_plot_data.tsv"), sep="\t", index=False)
+
     
+    if generate_epitope_data:
+        # map each base full name to codename, just use C columns
+        # note: need to remove " CtoS" from S version peptides' fullnames
+        codename_2_fullname = defaultdict()
+        ordered_fullnames = list()
+        for i, row in has_s_versions.iterrows():
+            fullname = row[fullname_column][0:-len(" CtoS")]
+            ordered_fullnames.append(fullname)
+            codename_2_fullname[row[parent_codename_column]] = fullname
 
-    # map each base full name to codename, just use C columns
-    # note: need to remove " CtoS" from S version peptides' fullnames
-    codename_2_fullname = dict()
-    ordered_fullnames = list()
-    for i, row in has_s_versions.iterrows():
-        fullname = row[fullname_column][0:-len(" CtoS")]
-        ordered_fullnames.append(fullname)
-        codename_2_fullname[row[parent_codename_column]] = fullname
+        # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
+        max_distance = pep_seq_len-min_epitope_size
+        raw_epitope_df, formatted_epitope_df = map_epitopes(data_df, codename_2_fullname, ordered_fullnames, fullname_column, min_zscore_diff, max_distance, fasta_dict)
 
-    # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
-    max_distance = pep_seq_len-min_epitope_size
-    raw_epitope_df, formatted_epitope_df = map_epitopes(data_df, codename_2_fullname, ordered_fullnames, fullname_column, min_zscore_diff, max_distance, fasta_dict)
+        raw_epitope_df.to_csv(os.path.join(output_dir, "raw_epitope_data.tsv"), sep="\t")
+        formatted_epitope_df.to_csv(os.path.join(output_dir, "formatted_epitope_data.tsv"), sep="\t", index=False)
 
-    raw_epitope_df.to_csv(os.path.join(output_dir, "raw_epitope_data.tsv"), sep="\t")
-    formatted_epitope_df.to_csv(os.path.join(output_dir, "formatted_epitope_data.tsv"), sep="\t", index=False)
+
+    c_count_summary_df = get_c_count_summaries(data_df, min_zscore_diff, max_zscore_diff, fasta_dict)
+    c_count_summary_df.to_csv(os.path.join(output_dir, "c_count_summary.tsv"), sep="\t", index=False)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {round(elapsed_time, 2)} seconds")
 
     return chart
+
+def get_c_count_summaries(
+    data_df: pd.DataFrame,
+    min_zscore_diff: float,
+    max_zscore_diff: float,
+    fasta_dict: dict
+):
+    # group by sample
+    grouped_data = data_df.groupby("Sample Name")
+
+    c_higher_category_name = "C_Higher"
+    s_higher_category_name = "S_Higher"
+    similar_category_name = "Similar"
+
+    summary_data = list()
+
+    for sample_name, sample_df in grouped_data:
+        # keep track of counts in this format = category: num_cysteines: num_peptides
+        peptide_counts = {
+            c_higher_category_name: defaultdict(int),
+            s_higher_category_name: defaultdict(int),
+            similar_category_name: defaultdict(int)
+        }
+
+        # keep track of total counts in this format = category: num_peptides
+        total_peptide_counts = {
+            c_higher_category_name: 0,
+            s_higher_category_name: 0,
+            similar_category_name: 0
+        }
+
+        # loop through each peptide
+        for i, row in sample_df.iterrows():
+            parent_pep = row["C codename"]
+            c_zscore = row["C Z score"]
+            s_zscore = row["S Z score"]
+
+            category_name = None
+
+            # check that the difference ratio meets the min difference threshold
+            if (abs(c_zscore-s_zscore)/max([c_zscore, s_zscore])) >= min_zscore_diff:
+                # check if c is more reactive
+                if c_zscore > s_zscore:
+                    category_name = c_higher_category_name
+
+                # check if s is more reactive
+                elif c_zscore < s_zscore:
+                    category_name = s_higher_category_name
+
+            # check if both versions are "equally" reactive
+            elif (abs(c_zscore-s_zscore)/max([c_zscore, s_zscore])) <= max_zscore_diff:
+                category_name = similar_category_name
+            
+            # check if a category name was set
+            if category_name:
+                # count number
+                peptide_counts[category_name][get_c_count(fasta_dict[parent_pep])] += 1
+                total_peptide_counts[category_name] += 1
+        
+        # find the max number of cysteines
+        max_num_c = get_max_num_c(peptide_counts)
+
+        # write to output data
+        for num_c in range(1, max_num_c+1):
+            for category in peptide_counts.keys():
+                number_peptides = peptide_counts[category][num_c]
+                proportion_peptides = number_peptides / total_peptide_counts[category] if total_peptide_counts[category] > 0 else 0
+                summary_data.append((sample_name, category, num_c, number_peptides, round(proportion_peptides, 2)))
+    
+    c_count_summary_df = pd.DataFrame(summary_data, columns=["Sample", "Category", "Number_Cysteines", "Number_Peptides", "Proportion_Peptides"])
+
+    return c_count_summary_df
+
+
+# find the max number of cysteines in summary peptide counts dictionary
+def get_max_num_c(peptide_counts):
+    max_num = 0
+    for category in peptide_counts.keys():
+        all_num_c = list(peptide_counts[category].keys())
+        if all_num_c:
+            max_c_for_this_category = max(all_num_c)
+            if max_c_for_this_category > max_num:
+                max_num = max_c_for_this_category
+    
+    return max_num
+
+
+# get the count of cysteine amino acids in a peptide sequence
+def get_c_count(peptide_seq):
+    return peptide_seq.lower().count('c')
 
 
  # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
@@ -144,15 +245,15 @@ def map_epitopes(
         c_reactivity_data = list()
         s_reactivity_data = list()
 
-        # loop through each point
+        # loop through each peptide
         for i, row in sample_df.iterrows():
             # note: codename_2_fullname uses C codenme
             fullname = codename_2_fullname[row["C codename"]]
 
             sequence_name, start_pos, end_pos = extract_fullname_data(fullname)
 
-            c_zscore = row["C z-score"]
-            s_zscore = row["S z-score"]
+            c_zscore = row["C Z score"]
+            s_zscore = row["S Z score"]
 
             # check that the difference ratio meets the min difference threshold
             if (abs(c_zscore-s_zscore)/max([c_zscore, s_zscore])) >= min_zscore_diff:
@@ -257,7 +358,7 @@ def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int, sample_df: pd.D
 
             # add peptides and zscores for opposite of found epitope
             opposite_peptides = [data_df.loc[pep][f"{opposite} codename"] for pep in peptides]
-            opposite_zscores = [str(data_df.loc[pep][f"{opposite} z-score"]) for pep in peptides]
+            opposite_zscores = [str(data_df.loc[pep][f"{opposite} Z score"]) for pep in peptides]
 
             opposite_epitopes.append((
                 sequence_name,
@@ -267,7 +368,7 @@ def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int, sample_df: pd.D
     
     return all_epitopes, opposite_epitopes
 
-
+# extracts sequence name, start position, and end position from fullname
 def extract_fullname_data(fullname: str):
     parts = fullname.split("_")
     return "_".join(parts[0:-2]), int(parts[-2]), int(parts[-1])
