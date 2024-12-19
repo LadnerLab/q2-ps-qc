@@ -74,6 +74,7 @@ def compareCS(
         "S Z score": list(),
         "C codename": list(),
         "S codename": list(),
+        "Parent Sequence": list(),
         "Sample Name": list()
     }
 
@@ -87,6 +88,7 @@ def compareCS(
                 data_dict["S Z score"].append(s_zscore)
                 data_dict["C codename"].append(c_version)
                 data_dict["S codename"].append(s_version)
+                data_dict["Parent Sequence"].append(fasta_dict[c_version])
                 data_dict["Sample Name"].append(variant)
 
     # generate graph
@@ -95,6 +97,7 @@ def compareCS(
         y = data_dict["S Z score"],
         c_codenames = data_dict["C codename"],
         s_codenames = data_dict["S codename"],
+        parent_sequences = data_dict["Parent Sequence"],
         sample_names = data_dict["Sample Name"]
     )
 
