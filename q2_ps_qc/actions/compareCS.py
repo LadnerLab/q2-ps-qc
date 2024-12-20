@@ -100,36 +100,40 @@ def generate_c_count_histogram(
     # automatically populate dict stucture
     c_count_data = defaultdict(lambda: histogram_dict(pep_seq_len))
 
-    # create an option for all samples
-    c_count_data["all"]
-
     for sample_name, category_2_parent_peptides in sample_category_peptides.items():
         for category_name, parent_peptides in category_2_parent_peptides.items():
             for parent_pep_seq in parent_peptides:
                 for pos, aa in enumerate(parent_pep_seq):
+                    total_c_count = str(get_c_count(parent_pep_seq))
                     if pos>=pep_seq_len:
                         raise IndexError(f"A peptide sequence length exceeds pep-seq-len: {pep_seq_len}")
                     if aa.lower() == 'c':
-                        c_count_data[sample_name][category_name]["C count"][pos] += 1
-                        c_count_data["all"][category_name]["C count"][pos] += 1
+                        c_count_data["all"]["all"][category_name]["C count"][pos] += 1
+                        c_count_data["all"][total_c_count][category_name]["C count"][pos] += 1
+                        c_count_data[sample_name]["all"][category_name]["C count"][pos] += 1
+                        c_count_data[sample_name][total_c_count][category_name]["C count"][pos] += 1
 
     histogram_data = {
         "Sample Name": list(),
+        "Total C count": list(),
         "Category Name": list(),
         "C count": list(),
         "Position": list()
     }
 
-    for sample_name, category_dicts in c_count_data.items():
-        for category_name, count_dict in category_dicts.items():
-            for i in range(pep_seq_len):
-                histogram_data["Sample Name"].append(sample_name)
-                histogram_data["Category Name"].append(category_name)
-                histogram_data["C count"].append(count_dict["C count"][i])
-                histogram_data["Position"].append(count_dict["Position"][i])
+    for sample_name, total_c_count_dicts in c_count_data.items():
+        for total_c_count, category_dicts in total_c_count_dicts.items():
+            for category_name, count_dict in category_dicts.items():
+                for i in range(pep_seq_len):
+                    histogram_data["Sample Name"].append(sample_name)
+                    histogram_data["Total C count"].append(total_c_count)
+                    histogram_data["Category Name"].append(category_name)
+                    histogram_data["C count"].append(count_dict["C count"][i])
+                    histogram_data["Position"].append(count_dict["Position"][i])
     
     chart, = histogram(
         sample_names = histogram_data["Sample Name"],
+        total_c_counts = histogram_data["Total C count"],
         category_names = histogram_data["Category Name"],
         c_counts = histogram_data["C count"],
         positions = histogram_data["Position"],
@@ -147,21 +151,7 @@ def create_count_structure(pep_seq_len):
 
 
 def histogram_dict(pep_seq_len):
-    return defaultdict(lambda: create_count_structure(pep_seq_len))
-
-
-# TODO: make this generalizable
-def get_fullnames(metadata, fullname_column, parent_codename_column):
-    # map each base full name to codename, just use C columns
-    # note: need to remove " CtoS" from S version peptides' fullnames
-    codename_2_fullname = defaultdict()
-    ordered_fullnames = list()
-    for i, row in metadata.iterrows():
-        fullname = row[fullname_column][0:-len(" CtoS")]
-        ordered_fullnames.append(fullname)
-        codename_2_fullname[row[parent_codename_column]] = fullname
-    
-    return codename_2_fullname, ordered_fullnames
+    return defaultdict(lambda: defaultdict(lambda: create_count_structure(pep_seq_len)))
 
 
 def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column, codename_column, min_zscore, fasta_dict):
@@ -214,6 +204,7 @@ def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column
 
     # output chart data
     return chart, pd.DataFrame.from_dict(data_dict)
+
 
 def get_c_count_summaries(
     sample_category_peptides: dict,
@@ -472,13 +463,6 @@ def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int, sample_df: pd.D
     return all_epitopes, opposite_epitopes
 
 
-# TODO: make this generalizable
-# extracts sequence name, start position, and end position from fullname
-def extract_fullname_data(fullname: str):
-    parts = fullname.split("_")
-    return "_".join(parts[0:-2]), int(parts[-2]), int(parts[-1])
-
-
 # Assumes that peptides are in order by start position
 def get_inferred_epitope(fasta_dict, peptides):
     # use the first and last peptide sequences
@@ -491,3 +475,24 @@ def get_inferred_epitope(fasta_dict, peptides):
         start_pos += 1
     
     return first_seq[start_pos:]
+
+
+# TODO: make this generalizable
+# extracts sequence name, start position, and end position from fullname
+def extract_fullname_data(fullname: str):
+    parts = fullname.split("_")
+    return "_".join(parts[0:-2]), int(parts[-2]), int(parts[-1])
+
+
+# TODO: make this generalizable
+def get_fullnames(metadata, fullname_column, parent_codename_column):
+    # map each base full name to codename, just use C columns
+    # note: need to remove " CtoS" from S version peptides' fullnames
+    codename_2_fullname = defaultdict()
+    ordered_fullnames = list()
+    for i, row in metadata.iterrows():
+        fullname = row[fullname_column][0:-len(" CtoS")]
+        ordered_fullnames.append(fullname)
+        codename_2_fullname[row[parent_codename_column]] = fullname
+    
+    return codename_2_fullname, ordered_fullnames
