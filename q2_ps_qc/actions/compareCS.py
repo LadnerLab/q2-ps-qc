@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import pandas as pd
-import altair as alt
 import fastatools as ft
 import time
 from collections import defaultdict
@@ -19,15 +18,17 @@ def compareCS(
         min_zscore_diff=0.5,
         max_zscore_diff=0.1,
         pep_seq_len=30,
+        histogram_bins=6,
         min_epitope_size=7,
-        output_dir="./output_data"
+        data_output_dir="./output_data"
 ):
     start_time = time.time()
 
-    assert not os.path.exists(output_dir), f"{output_dir} already exists! Please move or delete it and try again."
-    os.mkdir(output_dir)
+    assert not os.path.exists(data_output_dir), f"{data_output_dir} already exists! Please move or delete it and try again."
+    os.mkdir(data_output_dir)
 
     scatter_plot = ctx.get_action("ps-plot", "compareCS_scatter")
+    histogram = ctx.get_action("ps-plot", "compareCS_histogram")
 
     # read in fasta file
     fasta_dict = ft.read_fasta_dict(fasta_file)
@@ -58,12 +59,119 @@ def compareCS(
     # read in zscores file
     zscores = pd.read_csv(zscores_file, sep="\t").set_index('Sequence name')
 
+    metadata_has_s_versions = metadata[metadata[parent_codename_column].notna()]
+
+    scatterplot, chart_data = generate_scatterplot(scatter_plot, zscores, metadata_has_s_versions, parent_codename_column, codename_column, min_zscore, fasta_dict)
+    chart_data.to_csv(os.path.join(data_output_dir, "reactivity_plot_data.tsv"), sep="\t", index=False)
+
+    
+    if generate_epitope_data:
+        codename_2_fullname, ordered_fullnames = get_fullnames(metadata_has_s_versions, fullname_column, parent_codename_column)
+
+        # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
+        max_distance = pep_seq_len-min_epitope_size
+        raw_epitope_df, formatted_epitope_df = map_epitopes(chart_data, codename_2_fullname, ordered_fullnames, fullname_column, min_zscore_diff, max_distance, fasta_dict)
+
+        raw_epitope_df.to_csv(os.path.join(data_output_dir, "raw_epitope_data.tsv"), sep="\t")
+        formatted_epitope_df.to_csv(os.path.join(data_output_dir, "formatted_epitope_data.tsv"), sep="\t", index=False)
+
+
+    # sample_name: category_name: peptide_sequences
+    sample_category_peptides = seperate_peptides_into_categories(chart_data, min_zscore_diff, max_zscore_diff, fasta_dict)
+
+    c_count_summary_df = get_c_count_summaries(sample_category_peptides)
+    c_count_summary_df.to_csv(os.path.join(data_output_dir, "c_count_summary.tsv"), sep="\t", index=False)
+
+    histogram = generate_c_count_histogram(histogram, sample_category_peptides, histogram_bins, pep_seq_len)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {round(elapsed_time, 2)} seconds")
+
+    return scatterplot, histogram
+
+
+def generate_c_count_histogram(
+    histogram,
+    sample_category_peptides: dict, 
+    histogram_bins: int,
+    pep_seq_len: int
+):
+    # automatically populate dict stucture
+    c_count_data = defaultdict(lambda: histogram_dict(pep_seq_len))
+
+    # create an option for all samples
+    c_count_data["all"]
+
+    for sample_name, category_2_parent_peptides in sample_category_peptides.items():
+        for category_name, parent_peptides in category_2_parent_peptides.items():
+            for parent_pep_seq in parent_peptides:
+                for pos, aa in enumerate(parent_pep_seq):
+                    if pos>=pep_seq_len:
+                        raise IndexError(f"A peptide sequence length exceeds pep-seq-len: {pep_seq_len}")
+                    if aa.lower() == 'c':
+                        c_count_data[sample_name][category_name]["C count"][pos] += 1
+                        c_count_data["all"][category_name]["C count"][pos] += 1
+    
+    print(c_count_data)
+
+    histogram_data = {
+        "Sample Name": list(),
+        "Category Name": list(),
+        "C count": list(),
+        "Position": list()
+    }
+
+    for sample_name, category_dicts in c_count_data.items():
+        for category_name, count_dict in category_dicts.items():
+            for i in range(pep_seq_len):
+                histogram_data["Sample Name"].append(sample_name)
+                histogram_data["Category Name"].append(category_name)
+                histogram_data["C count"].append(count_dict["C count"][i])
+                histogram_data["Position"].append(count_dict["Position"][i])
+    
+    chart, = histogram(
+        sample_names = histogram_data["Sample Name"],
+        category_names = histogram_data["Category Name"],
+        c_counts = histogram_data["C count"],
+        positions = histogram_data["Position"],
+        num_bins = histogram_bins
+    )
+
+    return chart
+
+
+def create_count_structure(pep_seq_len):
+    return {
+        "C count": [0] * pep_seq_len,
+        "Position": list(range(pep_seq_len))
+    }
+
+
+def histogram_dict(pep_seq_len):
+    return defaultdict(lambda: create_count_structure(pep_seq_len))
+
+
+# TODO: make this generalizable
+def get_fullnames(metadata, fullname_column, parent_codename_column):
+    # map each base full name to codename, just use C columns
+    # note: need to remove " CtoS" from S version peptides' fullnames
+    codename_2_fullname = defaultdict()
+    ordered_fullnames = list()
+    for i, row in metadata.iterrows():
+        fullname = row[fullname_column][0:-len(" CtoS")]
+        ordered_fullnames.append(fullname)
+        codename_2_fullname[row[parent_codename_column]] = fullname
+    
+    return codename_2_fullname, ordered_fullnames
+
+
+def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column, codename_column, min_zscore, fasta_dict):
     # get variants
     variants = zscores.columns.to_list()
 
     # format data to have {c_version: s_version}
-    has_s_versions = metadata[metadata[parent_codename_column].notna()]
-    c_to_s = {row[parent_codename_column]: row[codename_column] for i, row in has_s_versions.iterrows()}
+    c_to_s = {row[parent_codename_column]: row[codename_column] for i, row in metadata.iterrows()}
 
     # filter zscore matrix to only have scores for peptides with a c and s version
     filtered_zscores = zscores.loc[zscores.index.isin(list(c_to_s.keys())+list(c_to_s.values()))]
@@ -102,53 +210,18 @@ def compareCS(
     )
 
     # output chart data
-    data_df = pd.DataFrame.from_dict(data_dict)
-    data_df.to_csv(os.path.join(output_dir, "reactivity_plot_data.tsv"), sep="\t", index=False)
-
-    
-    if generate_epitope_data:
-        # map each base full name to codename, just use C columns
-        # note: need to remove " CtoS" from S version peptides' fullnames
-        codename_2_fullname = defaultdict()
-        ordered_fullnames = list()
-        for i, row in has_s_versions.iterrows():
-            fullname = row[fullname_column][0:-len(" CtoS")]
-            ordered_fullnames.append(fullname)
-            codename_2_fullname[row[parent_codename_column]] = fullname
-
-        # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
-        max_distance = pep_seq_len-min_epitope_size
-        raw_epitope_df, formatted_epitope_df = map_epitopes(data_df, codename_2_fullname, ordered_fullnames, fullname_column, min_zscore_diff, max_distance, fasta_dict)
-
-        raw_epitope_df.to_csv(os.path.join(output_dir, "raw_epitope_data.tsv"), sep="\t")
-        formatted_epitope_df.to_csv(os.path.join(output_dir, "formatted_epitope_data.tsv"), sep="\t", index=False)
-
-
-    c_count_summary_df = get_c_count_summaries(data_df, min_zscore_diff, max_zscore_diff, fasta_dict)
-    c_count_summary_df.to_csv(os.path.join(output_dir, "c_count_summary.tsv"), sep="\t", index=False)
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Elapsed time: {round(elapsed_time, 2)} seconds")
-
-    return chart
+    return chart, pd.DataFrame.from_dict(data_dict)
 
 def get_c_count_summaries(
-    data_df: pd.DataFrame,
-    min_zscore_diff: float,
-    max_zscore_diff: float,
-    fasta_dict: dict
+    sample_category_peptides: dict,
+    c_higher_category_name: str = "C_Higher",
+    s_higher_category_name: str = "S_Higher",
+    similar_category_name: str = "Similar"
 ):
-    # group by sample
-    grouped_data = data_df.groupby("Sample Name")
-
-    c_higher_category_name = "C_Higher"
-    s_higher_category_name = "S_Higher"
-    similar_category_name = "Similar"
-
     summary_data = list()
 
-    for sample_name, sample_df in grouped_data:
+    for sample_name, category_2_parent_peptides in sample_category_peptides.items():
+
         # keep track of counts in this format = category: num_cysteines: num_peptides
         peptide_counts = {
             c_higher_category_name: defaultdict(int),
@@ -156,11 +229,47 @@ def get_c_count_summaries(
             similar_category_name: defaultdict(int)
         }
 
-        # keep track of total counts in this format = category: num_peptides
-        total_peptide_counts = {
-            c_higher_category_name: 0,
-            s_higher_category_name: 0,
-            similar_category_name: 0
+        for category_name, parent_peptides in category_2_parent_peptides.items():
+            for parent_pep_seq in parent_peptides:
+                # count number of peptides that have that number of c's in the parent peptide
+                peptide_counts[category_name][get_c_count(parent_pep_seq)] += 1
+        
+        # find the max number of cysteines
+        max_num_c = get_max_num_c(peptide_counts)
+
+        # write to output data
+        for num_c in range(1, max_num_c+1):
+            for category in peptide_counts.keys():
+                number_peptides = peptide_counts[category][num_c]
+                number_total_peptides = len(category_2_parent_peptides[category])
+                proportion_peptides = number_peptides / number_total_peptides if number_total_peptides > 0 else 0
+                summary_data.append((sample_name, category, num_c, number_peptides, round(proportion_peptides, 2)))
+    
+    c_count_summary_df = pd.DataFrame(summary_data, columns=["Sample", "Category", "Number_Cysteines", "Number_Peptides", "Proportion_Peptides"])
+
+    return c_count_summary_df
+
+
+def seperate_peptides_into_categories(
+    data_df: pd.DataFrame,
+    min_zscore_diff: float,
+    max_zscore_diff: float,
+    fasta_dict: dict,
+    c_higher_category_name: str = "C_Higher",
+    s_higher_category_name: str = "S_Higher",
+    similar_category_name: str = "Similar"
+):
+    # group by sample
+    grouped_data = data_df.groupby("Sample Name")
+
+    # sample_name: category_name: peptide_sequences
+    sample_category_peptides = dict()
+
+    for sample_name, sample_df in grouped_data:
+        sample_category_peptides[sample_name] = {
+            c_higher_category_name: list(),
+            s_higher_category_name: list(),
+            similar_category_name: list()
         }
 
         # loop through each peptide
@@ -187,23 +296,11 @@ def get_c_count_summaries(
             
             # check if a category name was set
             if category_name:
-                # count number
-                peptide_counts[category_name][get_c_count(fasta_dict[parent_pep])] += 1
-                total_peptide_counts[category_name] += 1
-        
-        # find the max number of cysteines
-        max_num_c = get_max_num_c(peptide_counts)
+                parent_pep_seq = fasta_dict[parent_pep]
+                # seperate the raw peptide sequences into categories
+                sample_category_peptides[sample_name][category_name].append(parent_pep_seq)
 
-        # write to output data
-        for num_c in range(1, max_num_c+1):
-            for category in peptide_counts.keys():
-                number_peptides = peptide_counts[category][num_c]
-                proportion_peptides = number_peptides / total_peptide_counts[category] if total_peptide_counts[category] > 0 else 0
-                summary_data.append((sample_name, category, num_c, number_peptides, round(proportion_peptides, 2)))
-    
-    c_count_summary_df = pd.DataFrame(summary_data, columns=["Sample", "Category", "Number_Cysteines", "Number_Peptides", "Proportion_Peptides"])
-
-    return c_count_summary_df
+    return sample_category_peptides 
 
 
 # find the max number of cysteines in summary peptide counts dictionary
@@ -371,6 +468,8 @@ def get_epitopes(reactivity_df: pd.DataFrame, max_distance: int, sample_df: pd.D
     
     return all_epitopes, opposite_epitopes
 
+
+# TODO: make this generalizable
 # extracts sequence name, start position, and end position from fullname
 def extract_fullname_data(fullname: str):
     parts = fullname.split("_")

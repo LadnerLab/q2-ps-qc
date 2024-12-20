@@ -76,8 +76,9 @@ plugin.pipelines.register_function(
         "min_zscore_diff": Float,
         "max_zscore_diff": Float,
         "pep_seq_len": Int,
+        "histogram_bins": Int,
         "min_epitope_size": Int,
-        "output_dir": Str,
+        "data_output_dir": Str,
     },
     parameter_descriptions = {
         "metadata_file": "",
@@ -93,12 +94,14 @@ plugin.pipelines.register_function(
         "min_zscore_diff": "",
         "max_zscore_diff": "",
         "pep_seq_len": "",
+        "histogram_bins": "",
         "min_epitope_size": "",
-        "output_dir": ""
+        "data_output_dir": ""
     },
-    outputs = [("reactivity_plot", Visualization)],
+    outputs = [("reactivity_plot", Visualization), ("c_pos_histogram", Visualization)],
 	output_descriptions = {
-        "reactivity_plot": ""
+        "reactivity_plot": "",
+        "c_pos_histogram": ""
     },
     name = "Compare C to S substitution reactivity",
     description = ""
