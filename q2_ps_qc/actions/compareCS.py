@@ -181,6 +181,7 @@ def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column
         "C codename": list(),
         "S codename": list(),
         "Parent Sequence": list(),
+        "C count": list(),
         "Sample Name": list()
     }
 
@@ -190,11 +191,14 @@ def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column
             s_zscore = float(filtered_zscores.loc[s_version, variant])
             # check if either meets the min zscore threshold
             if c_zscore >= min_zscore or s_zscore >= min_zscore:
+                parent_seq = fasta_dict[c_version]
+
                 data_dict["C Z score"].append(c_zscore)
                 data_dict["S Z score"].append(s_zscore)
                 data_dict["C codename"].append(c_version)
                 data_dict["S codename"].append(s_version)
-                data_dict["Parent Sequence"].append(fasta_dict[c_version])
+                data_dict["Parent Sequence"].append(parent_seq)
+                data_dict["C count"].append(get_c_count(parent_seq))
                 data_dict["Sample Name"].append(variant)
 
     # generate graph
@@ -204,6 +208,7 @@ def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column
         c_codenames = data_dict["C codename"],
         s_codenames = data_dict["S codename"],
         parent_sequences = data_dict["Parent Sequence"],
+        c_counts = data_dict["C count"],
         sample_names = data_dict["Sample Name"]
     )
 
