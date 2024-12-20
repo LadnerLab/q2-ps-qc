@@ -112,8 +112,6 @@ def generate_c_count_histogram(
                     if aa.lower() == 'c':
                         c_count_data[sample_name][category_name]["C count"][pos] += 1
                         c_count_data["all"][category_name]["C count"][pos] += 1
-    
-    print(c_count_data)
 
     histogram_data = {
         "Sample Name": list(),
