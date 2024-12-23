@@ -27,8 +27,8 @@ def compareCS(
     assert not os.path.exists(data_output_dir), f"{data_output_dir} already exists! Please move or delete it and try again."
     os.mkdir(data_output_dir)
 
-    scatter_plot = ctx.get_action("ps-plot", "compareCS_scatter")
-    histogram = ctx.get_action("ps-plot", "compareCS_histogram")
+    make_scatter_plot = ctx.get_action("ps-plot", "compareCS_scatter")
+    make_histogram = ctx.get_action("ps-plot", "compareCS_histogram")
 
     # read in fasta file
     fasta_dict = ft.read_fasta_dict(fasta_file)
@@ -61,7 +61,7 @@ def compareCS(
 
     metadata_has_s_versions = metadata[metadata[parent_codename_column].notna()]
 
-    scatterplot, chart_data = generate_scatterplot(scatter_plot, zscores, metadata_has_s_versions, parent_codename_column, codename_column, min_zscore, fasta_dict)
+    scatterplot, chart_data = generate_scatterplot(make_scatter_plot, zscores, metadata_has_s_versions, parent_codename_column, codename_column, min_zscore, fasta_dict)
     chart_data.to_csv(os.path.join(data_output_dir, "reactivity_plot_data.tsv"), sep="\t", index=False)
 
     
@@ -82,7 +82,7 @@ def compareCS(
     c_count_summary_df = get_c_count_summaries(sample_category_peptides)
     c_count_summary_df.to_csv(os.path.join(data_output_dir, "c_count_summary.tsv"), sep="\t", index=False)
 
-    histogram = generate_c_count_histogram(histogram, sample_category_peptides, histogram_bins, pep_seq_len)
+    histogram = generate_c_count_histogram(make_histogram, sample_category_peptides, histogram_bins, pep_seq_len)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -92,7 +92,7 @@ def compareCS(
 
 
 def generate_c_count_histogram(
-    histogram,
+    make_histogram,
     sample_category_peptides: dict, 
     histogram_bins: int,
     pep_seq_len: int
@@ -131,7 +131,7 @@ def generate_c_count_histogram(
                     histogram_data["C count"].append(count_dict["C count"][i])
                     histogram_data["Position"].append(count_dict["Position"][i])
     
-    chart, = histogram(
+    chart, = make_histogram(
         sample_names = histogram_data["Sample Name"],
         total_c_counts = histogram_data["Total C count"],
         category_names = histogram_data["Category Name"],
@@ -154,7 +154,7 @@ def histogram_dict(pep_seq_len):
     return defaultdict(lambda: defaultdict(lambda: create_count_structure(pep_seq_len)))
 
 
-def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column, codename_column, min_zscore, fasta_dict):
+def generate_scatterplot(make_scatter_plot, zscores, metadata, parent_codename_column, codename_column, min_zscore, fasta_dict):
     # get variants
     variants = zscores.columns.to_list()
 
@@ -192,7 +192,7 @@ def generate_scatterplot(scatter_plot, zscores, metadata, parent_codename_column
                 data_dict["Sample Name"].append(variant)
 
     # generate graph
-    chart, = scatter_plot(
+    chart, = make_scatter_plot(
         x = data_dict["C Z score"],
         y = data_dict["S Z score"],
         c_codenames = data_dict["C codename"],
