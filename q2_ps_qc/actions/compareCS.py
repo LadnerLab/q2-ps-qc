@@ -13,6 +13,8 @@ def compareCS(
         zscores_file,
         fasta_file,
         fullname_column=None,
+        align_start_column=None,
+        align_stop_column=None,
         generate_epitope_data=False,
         min_zscore=8,
         min_zscore_diff=0.5,
@@ -41,14 +43,14 @@ def compareCS(
         raise ValueError(f"{codename_column} column not found in metadata file.")
     elif parent_codename_column not in metadata.columns:
         raise ValueError(f"{parent_codename_column} column not found in metadata file.")
-    elif fullname_column not in metadata.columns:
+    elif fullname_column not in metadata.columns or align_start_column not in metadata.columns or align_stop_column not in metadata.columns:
         if generate_epitope_data:
-            raise ValueError(f"{fullname_column} column not found in metadata file. Turn off the generation of epitope data if fullname is not included.")
+            raise ValueError(f"{fullname_column}, {align_start_column}, or {align_stop_column} column not found in metadata file. Turn off the generation of epitope data if fullname, align start column, or align stop column is not included.")
         else:   
             # extract columns
             metadata = metadata[[codename_column, parent_codename_column]]
     else:
-        metadata = metadata[[fullname_column, codename_column, parent_codename_column]]
+        metadata = metadata[[fullname_column, align_start_column, align_stop_column, codename_column, parent_codename_column]]
 
     # validate zscores (doing this to avoid using qiime2 format types honestly)
     with open(zscores_file) as fh:
@@ -66,11 +68,11 @@ def compareCS(
 
     
     if generate_epitope_data:
-        codename_2_fullname, ordered_fullnames = get_fullnames(metadata_has_s_versions, fullname_column, parent_codename_column)
+        codename_2_fullname_with_align_positions, ordered_fullnames_with_align_positions = get_fullnames(metadata_has_s_versions, fullname_column, align_start_column, align_stop_column, parent_codename_column)
 
         # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
         max_distance = pep_seq_len-min_epitope_size
-        raw_epitope_df, formatted_epitope_df = map_epitopes(chart_data, codename_2_fullname, ordered_fullnames, fullname_column, min_zscore_diff, max_distance, fasta_dict)
+        raw_epitope_df, formatted_epitope_df = map_epitopes(chart_data, codename_2_fullname_with_align_positions, ordered_fullnames_with_align_positions, fullname_column, align_start_column, align_stop_column, min_zscore_diff, max_distance, fasta_dict)
 
         raw_epitope_df.to_csv(os.path.join(data_output_dir, "raw_epitope_data.tsv"), sep="\t")
         formatted_epitope_df.to_csv(os.path.join(data_output_dir, "formatted_epitope_data.tsv"), sep="\t", index=False)
@@ -318,14 +320,16 @@ def get_c_count(peptide_seq):
  # map epitopes that are more reactive with the C versions and those that are more reactive with the S versions
 def map_epitopes(
         data_df: pd.DataFrame, 
-        codename_2_fullname: dict, 
-        ordered_fullnames: list, 
+        codename_2_fullname_with_align_positions: dict, 
+        ordered_fullnames_with_align_positions: list, 
         fullname_column: str,
+        align_start_column: str, 
+        align_stop_column: str,
         min_zscore_diff: float,
         max_distance: int,
         fasta_dict: dict
     ):
-    raw_epitope_df = pd.DataFrame(ordered_fullnames, columns=[fullname_column]).set_index(fullname_column)
+    raw_epitope_df = pd.DataFrame(ordered_fullnames_with_align_positions, columns=[fullname_column, align_start_column, align_stop_column]).set_index(fullname_column)
 
     # group by sample
     grouped_data = data_df.groupby("Sample Name")
@@ -342,9 +346,7 @@ def map_epitopes(
         # loop through each peptide
         for i, row in sample_df.iterrows():
             # note: codename_2_fullname uses C codenme
-            fullname = codename_2_fullname[row["C codename"]]
-
-            sequence_name, start_pos, end_pos = extract_fullname_data(fullname)
+            sequence_name, start_pos, end_pos = codename_2_fullname_with_align_positions[row["C codename"]]
 
             c_zscore = row["C Z score"]
             s_zscore = row["S Z score"]
@@ -363,11 +365,11 @@ def map_epitopes(
                 else:
                     reactive = "Tie"
                     
-                raw_sample_reactivity.append([fullname, reactive])
+                raw_sample_reactivity.append([sequence_name, start_pos, end_pos, reactive])
 
         # add reativity data to raw_epitope_df
-        new_raw_sample_df = pd.DataFrame(raw_sample_reactivity, columns=[fullname_column, sample_name]).set_index(fullname_column)
-        raw_epitope_df = raw_epitope_df.merge(new_raw_sample_df, how='outer', left_index=True, right_index=True)
+        new_raw_sample_df = pd.DataFrame(raw_sample_reactivity, columns=[fullname_column, align_start_column, align_stop_column, sample_name]).set_index(fullname_column)
+        raw_epitope_df = raw_epitope_df.merge(new_raw_sample_df, how='outer', on=[fullname_column, align_start_column, align_stop_column])
 
         # create data frame for c and s reactivity
         c_epitopes = None
@@ -477,22 +479,16 @@ def get_inferred_epitope(fasta_dict, peptides):
     return first_seq[start_pos:]
 
 
-# TODO: make this generalizable
-# extracts sequence name, start position, and end position from fullname
-def extract_fullname_data(fullname: str):
-    parts = fullname.split("_")
-    return "_".join(parts[0:-2]), int(parts[-2]), int(parts[-1])
-
-
-# TODO: make this generalizable
-def get_fullnames(metadata, fullname_column, parent_codename_column):
+def get_fullnames(metadata, fullname_column, align_start_column, align_stop_column, parent_codename_column):
     # map each base full name to codename, just use C columns
     # note: need to remove " CtoS" from S version peptides' fullnames
     codename_2_fullname = defaultdict()
     ordered_fullnames = list()
     for i, row in metadata.iterrows():
-        fullname = row[fullname_column][0:-len(" CtoS")]
-        ordered_fullnames.append(fullname)
-        codename_2_fullname[row[parent_codename_column]] = fullname
+        fullname = row[fullname_column]
+        align_start_pos = row[align_start_column]
+        align_stop_pos = row[align_stop_column]
+        ordered_fullnames.append( (fullname, align_start_pos, align_stop_pos) )
+        codename_2_fullname[row[parent_codename_column]] = (fullname, align_start_pos, align_stop_pos)
     
     return codename_2_fullname, ordered_fullnames
