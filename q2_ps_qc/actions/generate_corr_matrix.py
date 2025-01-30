@@ -120,8 +120,11 @@ def generate_corr_matrix(
         # those on a line are considered
         for group in user_spec_reps:
             user_spec_pairs.extend(list(combinations(group, 2)))
+        
+        user_spec_pairs_finder = user_spec_pairs.copy()
     else: # assume there will be no pairs
         user_spec_pairs = None
+    
 
     # Open the file with replicate scores
     score_fh = open(data, "r")
@@ -147,8 +150,15 @@ def generate_corr_matrix(
             current_replicate = replicates[index]
 
             if not looking_for_second_pair:
+                print(f"1: {current_replicate}")
                 replicate_pair_dict = {}
-                base_sequence_name = rfind("_", current_replicate)
+                
+                if user_spec_pairs:
+                    base_sequence_name = get_other_replicate_name(current_replicate, user_spec_pairs_finder)
+                else:
+                    base_sequence_name = rfind("_", current_replicate)
+
+                print(f"base: {base_sequence_name}")
 
                 temp_index = index
                 first_pair_index = index
@@ -160,8 +170,9 @@ def generate_corr_matrix(
                 continue
 
             # Check if current replicate has matching base sequence name
-            if looking_for_second_pair and rfind("_", current_replicate) == base_sequence_name:
+            if looking_for_second_pair and current_replicate[0:len(base_sequence_name)] == base_sequence_name:
                 second_pair_index = index
+                print(f"2: {replicates[second_pair_index]}")
 
                 replicate_pair_dict[current_replicate] = []
 
@@ -325,3 +336,18 @@ def generate_corr_matrix(
 
     return bad_correlation_vis, good_correlation_vis
 
+
+def get_other_replicate_name(current_replicate, user_spec_pairs_finder):
+    for i, pair in enumerate(user_spec_pairs_finder):
+        if current_replicate in pair:
+            rep_1 = pair[0]
+            rep_2 = pair[1]
+
+            user_spec_pairs_finder.pop(i)
+            
+            if rep_1 == current_replicate:
+                return rep_2
+            else:
+                return rep_1
+    
+    return rfind("_", current_replicate)
