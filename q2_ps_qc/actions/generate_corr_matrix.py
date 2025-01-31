@@ -152,7 +152,7 @@ def generate_corr_matrix(
             if not looking_for_second_pair:
                 print(f"1: {current_replicate}")
                 replicate_pair_dict = {}
-                
+
                 if user_spec_pairs:
                     base_sequence_name = get_other_replicate_name(current_replicate, user_spec_pairs_finder)
                 else:
@@ -279,7 +279,7 @@ def generate_corr_matrix(
         print("No bad correlation replicates found.")
     elif bad_corr_rep_found and not good_corr_rep_found:
         print("No good correlation replicates found.")
-    else:
+    elif not bad_corr_rep_found and not good_corr_rep_found:
         print("Neither good or bad correlation replicates found.")
         
     # Create Zscore matrix and metadata for bad correlation replicates
