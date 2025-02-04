@@ -99,9 +99,12 @@ def generate_corr_matrix(
         data,
         samples=None,
         log_normalization=False,
+        reused_samples_in_pairs=False,
         correlation_threshold=0.8,
         bad_corr_out="bad_corr.tsv",
-        good_corr_out="good_corr.tsv"
+        good_corr_out="good_corr.tsv",
+        bad_pairs_out="bad_pairs.tsv",
+        good_pairs_out="good_pairs.tsv"
 ):
     LN_CONSTANT = 11
 
@@ -164,13 +167,19 @@ def generate_corr_matrix(
                 first_pair_index = index
 
                 replicate_pair_dict[current_replicate] = []
+                
+                if base_sequence_name != None:
+                    looking_for_second_pair = True
 
-                looking_for_second_pair = True
-                index += 1
-                continue
+                    if reused_samples_in_pairs:
+                        index = 0
+                    else:
+                        index += 1
+
+                    continue
 
             # Check if current replicate has matching base sequence name
-            if looking_for_second_pair and current_replicate[0:len(base_sequence_name)] == base_sequence_name:
+            if looking_for_second_pair and current_replicate[0:len(base_sequence_name)] == base_sequence_name and first_pair_index != index:
                 second_pair_index = index
                 print(f"2: {replicates[second_pair_index]}")
 
@@ -291,13 +300,14 @@ def generate_corr_matrix(
     good_metadata = generate_metadata(good_corr_replicates)
 
     # put user pairs in a format qiime2 can work with
+    # only add pairs if both exist
     bad_corr_spec_pairs = None
     good_corr_spec_pairs = None
     if user_spec_pairs is not None:
         if bad_corr_rep_found:
             bad_corr_spec_pairs = [
                 rep for pair in user_spec_pairs for rep in pair \
-                if rep in bad_corr_replicates
+                if pair[0] in bad_corr_replicates and pair[1] in bad_corr_replicates
             ]
 
             if len(bad_corr_spec_pairs) == 0:
@@ -306,11 +316,14 @@ def generate_corr_matrix(
         if good_corr_rep_found:
             good_corr_spec_pairs = [
                 rep for pair in user_spec_pairs for rep in pair \
-                if rep in good_corr_replicates
+                if pair[0] in good_corr_replicates and pair[1] in good_corr_replicates
             ]
 
             if len(good_corr_spec_pairs) == 0:
                 good_corr_spec_pairs = None
+    
+    output_corr_pairs_file(bad_pairs_out, bad_corr_spec_pairs)
+    output_corr_pairs_file(good_pairs_out, good_corr_spec_pairs)
         
     bad_correlation_vis, = repScatters_tsv(
 		source = bad_metadata,
@@ -350,4 +363,13 @@ def get_other_replicate_name(current_replicate, user_spec_pairs_finder):
             else:
                 return rep_1
     
-    return rfind("_", current_replicate)
+    return None
+
+
+def output_corr_pairs_file(output_filename, corr_spec_pairs_list):
+    with open(output_filename, 'w') as output_file:
+        for i in range(0, len(corr_spec_pairs_list), 2):
+            output_file.write(f"{corr_spec_pairs_list[i]}\t")
+            output_file.write(corr_spec_pairs_list[i+1])
+            if i < len(corr_spec_pairs_list) - 2:
+                output_file.write("\n")

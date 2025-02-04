@@ -35,9 +35,12 @@ plugin.pipelines.register_function(
         "data": Str,
         "samples": Str,
         "log_normalization": Bool,
+        "reused_samples_in_pairs": Bool,
         "correlation_threshold": Float,
         "bad_corr_out": Str,
-        "good_corr_out": Str
+        "good_corr_out": Str,
+        "bad_pairs_out": Str,
+        "good_pairs_out": Str
     },
     parameter_descriptions = {
 		"data": "Name of input file.",
@@ -47,11 +50,17 @@ plugin.pipelines.register_function(
             " containing a set of replicates.",
         "log_normalization": "Run a log normalization on each of the sets of"
             " scores before running a correlation test on them.",
+        "reused_samples_in_pairs": "Sample pairs include duplicate samples"
+            " (i.e. a single sample exists in more that one pairs). Turning"
+            " this on changes the second pair entry to be searched through"
+            " the entire array.",
         "correlation_threshold": "Set a threshold value; anything below the"
             " value will be considered a bad correlation score, and anything"
             " above will be considered a good correlation score.",
         "bad_corr_out": "Name of output bad correlation replicates file.",
-        "good_corr_out": "Name of output good correlation replicates file."
+        "good_corr_out": "Name of output good correlation replicates file.",
+        "bad_pairs_out": "Name of output bad pairs file.",
+        "good_pairs_out": "Name of output good pairs file."
     },
     outputs = [("bad_output", Visualization), ("good_output", Visualization)],
 	output_descriptions = {
